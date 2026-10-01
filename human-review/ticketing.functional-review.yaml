@@ -1,0 +1,665 @@
+artifact: functional-review
+schema_version: 1.0
+feature: ticketing-event-processing
+
+source:
+  artifact: feature-spec/ticketing.feature-spec.md
+  version: 2
+
+review:
+  status: PENDING
+  reviewer: human
+  reviewed_at: null
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: HV-001
+    priority: HIGH
+    question: "¿AVAILABLE, RESERVED, PENDING_CONFIRMATION, SOLD y COMPLIMENTARY pertenecen a Ticket, a Order o a ambos mediante máquinas de estado distintas?"
+    reason: >
+      El requerimiento atribuye los estados primero a las entradas y después,
+      en el Requisito Funcional 4, a la orden de compra. La elección define las
+      entidades, sus transiciones, la consulta de orden y el efecto contable.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Una orden de compra agrupa uno o más tickets. Todos los tickets
+      pertenecientes a una misma orden deben procesarse como una unidad
+      indivisible durante la compra.
+
+      No se permiten ventas parciales de una orden: si un usuario solicita
+      varios tickets, la operación debe completarse para todos los tickets
+      solicitados o no completarse para ninguno.
+
+      Los estados definidos en el requerimiento describen el estado de los
+      tickets. El estado de la orden debe ser coherente con el estado conjunto
+      de sus tickets, pero el modelo exacto de estados de Order será definido
+      posteriormente para poder representar también situaciones como rechazo,
+      expiración o fallo de procesamiento.
+
+      Las transiciones que afecten una orden y sus tickets deben preservar esta
+      consistencia de forma atómica.
+    impact:
+      - DS-001
+      - DS-002
+      - DS-003
+      - DS-004
+      - DS-005
+      - ST-001
+      - ST-002
+      - ST-003
+      - FR-008
+      - FR-009
+      - BR-001
+      - AC-012
+      - AC-013
+      - Domain:Order
+      - Domain:Ticket
+
+  - id: HV-002
+    priority: HIGH
+    question: "¿La secuencia es solicitar → reservar → encolar, o solicitar → encolar → reservar de forma asíncrona en el consumidor?"
+    reason: >
+      La reserva "al iniciar una compra" y el encolado "inmediato" de la
+      solicitud no fijan un orden entre ambas operaciones. Afecta la
+      consistencia, la respuesta inmediata y el comportamiento ante fallos.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La simple selección de tickets o ubicaciones por parte del usuario
+      no genera una reserva en el backend.
+
+      Una reserva comienza únicamente cuando el usuario inicia formalmente
+      el proceso de compra, por ejemplo al ejecutar la acción "Ir a pagar".
+
+      En ese momento el sistema debe intentar reservar de forma atómica todos
+      los tickets incluidos en la orden.
+
+      Si todos los tickets continúan disponibles, se crea la reserva sobre
+      todos ellos y comienza el período máximo de diez minutos.
+
+      Si al menos uno de los tickets ya no está disponible, por ejemplo porque
+      fue reservado previamente por otro usuario, la reserva completa debe
+      rechazarse.
+
+      No se permite reservar parcialmente una orden.
+
+      Después de crear correctamente la reserva, la solicitud de compra puede
+      continuar hacia el procesamiento asíncrono mediante la cola de mensajes.
+    impact:
+      - FR-004
+      - FR-005
+      - FR-006
+      - ST-001
+      - MF-002
+      - AC-003
+      - AC-004
+
+  - id: HV-003
+    priority: HIGH
+    question: "¿Qué acción o condición convierte una reserva en una venta confirmada?"
+    reason: >
+      El requerimiento exige confirmar la compra dentro de diez minutos, pero
+      no define el trigger de confirmación. Sin él no puede completarse la
+      máquina de estados ni determinarse qué reservas expiran.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Una reserva se convierte en compra confirmada únicamente cuando el
+      proceso de pago asociado finaliza exitosamente.
+
+      El sistema debe simular un flujo de pago. Mientras el pago no haya sido
+      aprobado, los tickets permanecen reservados y no deben considerarse
+      vendidos.
+
+      Si el resultado del pago es exitoso, la reserva se confirma y todos los
+      tickets asociados cambian de estado a SOLD de forma conjunta.
+
+      Si el pago falla, es rechazado o no se completa antes del vencimiento de
+      la reserva, la compra no se confirma y los tickets deben liberarse,
+      regresando al estado AVAILABLE.
+
+      No se permite confirmación parcial: todos los tickets de la reserva se
+      confirman juntos o ninguno se confirma.
+    impact:
+      - BR-003
+      - ST-002
+      - ST-003
+      - FR-011
+      - VAL-003
+      - ALT-001
+      - DS-004
+
+  - id: HV-004
+    priority: HIGH
+    question: "¿Qué significa PENDING_CONFIRMATION, cómo se alcanza y cómo se abandona?"
+    reason: >
+      El estado solo se nombra y se aclara que no representa una venta. No hay
+      semántica operacional ni transiciones de entrada o salida.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      PENDING_CONFIRMATION representa el estado en el que los tickets de una
+      orden ya fueron reservados exitosamente y el proceso de pago se encuentra
+      en curso o pendiente de una respuesta definitiva.
+
+      Este estado se alcanza después de crear correctamente la reserva de todos
+      los tickets solicitados y antes de conocer el resultado final del pago.
+
+      Mientras los tickets se encuentren en PENDING_CONFIRMATION continúan
+      bloqueados para otras órdenes y no se consideran vendidos.
+
+      Si el proceso de pago responde exitosamente, todos los tickets asociados
+      a la orden cambian conjuntamente a SOLD y la compra queda confirmada.
+
+      Si el pago es rechazado, falla de forma definitiva o no se completa antes
+      del vencimiento de la reserva, la compra no se confirma y todos los tickets
+      de la reserva deben liberarse, regresando a AVAILABLE.
+
+      No se permiten transiciones parciales: todos los tickets pertenecientes a
+      una misma orden deben abandonar PENDING_CONFIRMATION de forma conjunta.
+    impact:
+      - DS-003
+      - BR-005
+      - BR-012
+      - FR-009
+      - ST-003
+
+  - id: HV-005
+    priority: HIGH
+    question: "¿Cómo se crea una entrada COMPLIMENTARY, quién puede generarla y consume inventario o capacidad?"
+    reason: >
+      El estado solo se define como final y no contable. No existe flujo de
+      creación, actor autorizado ni efecto declarado sobre el inventario.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Las entradas COMPLIMENTARY deben definirse únicamente durante la creación
+      del evento.
+
+      Al crear un evento, el actor responsable de su configuración podrá
+      seleccionar qué ubicaciones serán destinadas como cortesías. Esas
+      ubicaciones se crearán directamente en estado COMPLIMENTARY.
+
+      Una entrada COMPLIMENTARY forma parte de la capacidad total del evento,
+      pero no forma parte de la disponibilidad comercial para venta.
+
+      Por lo tanto, las entradas de cortesía consumen capacidad física del
+      evento y reducen desde el momento de su creación la cantidad de tickets
+      disponibles para compra.
+
+      Una vez creado el evento no se permitirá convertir una entrada AVAILABLE,
+      RESERVED, PENDING_CONFIRMATION o SOLD en COMPLIMENTARY, ni agregar nuevas
+      cortesías posteriormente.
+
+      El estado COMPLIMENTARY es final y no contable, de acuerdo con el
+      requerimiento original.
+
+      La definición de qué actor o rol tiene autorización para crear eventos y
+      asignar las cortesías será resuelta en HV-014.
+    impact:
+      - DS-005
+      - BR-007
+      - BR-012
+      - AC-013
+      - FR-003
+      - FR-012
+
+  - id: HV-006
+    priority: HIGH
+    question: "¿El dominio administra entradas o asientos individuales, o únicamente una cantidad disponible por evento?"
+    reason: >
+      El texto habla de asientos vendidos a múltiples personas y de "cada
+      entrada", pero el evento solo exige capacidad total e inventario. La
+      respuesta cambia el modelo de dominio, las reservas y el control de
+      concurrencia.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      El sistema administrará tickets o ubicaciones individuales dentro de
+      cada evento, no únicamente una cantidad agregada de entradas disponibles.
+
+      Cada evento tendrá una capacidad total y un conjunto de ubicaciones
+      numeradas e identificables de forma única dentro del evento.
+
+      Cada ubicación representa una entrada individual y solo puede estar
+      asociada a una compra o reserva activa a la vez.
+
+      Cuando múltiples usuarios intenten reservar o comprar concurrentemente
+      la misma ubicación, el sistema debe garantizar que solamente una de las
+      solicitudes pueda adquirirla.
+
+      La disponibilidad agregada del evento podrá calcularse a partir del
+      estado de sus tickets individuales.
+    impact:
+      - Domain:Ticket
+      - Domain:Inventory
+      - FR-003
+      - FR-004
+      - FR-012
+      - BR-001
+      - BR-012
+
+  - id: HV-007
+    priority: MEDIUM
+    question: "¿\"Disponibilidad en tiempo real\" significa una lectura actual bajo demanda o actualizaciones continuas hacia el cliente?"
+    reason: >
+      La semántica de "tiempo real" no está definida y el analista no debe
+      asumir una tecnología ni un modo de entrega.
+    decision: PENDING
+    answer: null
+    impact:
+      - FR-012
+      - CAP-002
+      - AC-010
+
+  - id: HV-008
+    priority: HIGH
+    question: "¿Existe un flujo o proveedor de pago, y la confirmación de la compra depende de un resultado de pago?"
+    reason: >
+      Se habla de compra confirmada, pero el requerimiento no menciona pago.
+      La respuesta define el trigger de SOLD y los fallos de confirmación.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      El sistema incluirá un servicio de pago simulado independiente del backend
+      principal de ticketing.
+
+      Este mock representará un proveedor externo de pagos y permitirá simular,
+      como mínimo, respuestas de pago exitosas y fallidas para poder validar los
+      diferentes escenarios funcionales y de integración.
+
+      El backend de ticketing enviará la solicitud de pago al proveedor simulado
+      únicamente después de que todos los tickets de la orden hayan sido
+      reservados correctamente.
+
+      Mientras se espera el resultado del pago, los tickets permanecerán
+      bloqueados y la compra se encontrará en proceso de confirmación.
+
+      Si el proveedor simulado responde exitosamente, la compra se confirma y
+      todos los tickets de la orden cambian conjuntamente a SOLD.
+
+      Si el proveedor responde con un rechazo o fallo definitivo, la compra no
+      se confirma y todos los tickets asociados a la reserva deben liberarse,
+      regresando a AVAILABLE.
+
+      El proveedor de pago simulado se utilizará para probar de forma
+      determinista tanto los flujos exitosos como los escenarios de fallo.
+
+      La tecnología, protocolo de comunicación y diseño interno del mock serán
+      definidos posteriormente durante la etapa de arquitectura.
+    impact:
+      - Domain:Payment
+      - DS-004
+      - BR-003
+      - ST-003
+
+  - id: HV-009
+    priority: HIGH
+    question: "¿Qué estado y resultado consultable debe tener una orden rechazada por disponibilidad insuficiente o por fallo en el procesamiento asíncrono?"
+    reason: >
+      La lista de estados no incluye rechazo, fallo ni cancelación, y el
+      consumidor puede no encontrar disponibilidad al validar. Sin esta
+      definición no pueden cerrarse los flujos alternativos ni los errores.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La orden de compra tendrá estados propios, independientes de los estados
+      de los tickets, para representar correctamente el resultado del
+      procesamiento.
+
+      Cuando una orden no pueda completarse por una condición funcional o de
+      negocio, por ejemplo porque alguno de los tickets solicitados ya no se
+      encuentra disponible, la orden debe finalizar en estado REJECTED.
+
+      Cuando ocurra un error técnico definitivo durante el procesamiento
+      asíncrono y la operación no pueda completarse correctamente, la orden debe
+      finalizar en estado FAILED.
+
+      Cuando la reserva supere el tiempo máximo de diez minutos sin que la compra
+      haya sido confirmada, la orden debe finalizar en estado EXPIRED.
+
+      Cuando la compra finalice satisfactoriamente, la orden debe quedar en un
+      estado de confirmación exitosa, cuya denominación definitiva podrá
+      consolidarse junto con la máquina completa de estados de Order.
+
+      En los estados REJECTED, FAILED o EXPIRED ningún ticket de la orden puede
+      permanecer vendido. Los tickets que hubieran sido reservados deben
+      liberarse de forma conjunta y regresar a AVAILABLE, salvo que exista una
+      condición de procesamiento aún recuperable que deba resolverse antes de
+      liberar la reserva.
+
+      La consulta de una orden debe permitir identificar su estado actual y,
+      cuando no haya finalizado exitosamente, exponer una causa funcional
+      comprensible del rechazo, fallo o expiración sin revelar detalles técnicos
+      internos.
+
+      No se permiten resultados parciales: una orden nunca puede finalizar con
+      solo una parte de sus tickets vendidos.    
+    impact:
+      - FR-008
+      - FR-009
+      - ALT-002
+      - ERR-002
+      - AC-005
+
+  - id: HV-010
+    priority: HIGH
+    question: "¿SQS es obligatorio, o puede usarse cualquier cola que cumpla la función?"
+    reason: >
+      El stack permite "LocalStack u cualquier otra solución que cumpla esta
+      función", pero las Especificaciones Técnicas ordenan configurar SQS.
+      Es una contradicción sobre una restricción tecnológica.
+    decision: PENDING
+    answer: null
+    impact:
+      - TC-005
+      - TC-010
+      - DEL-005
+
+  - id: HV-011
+    priority: HIGH
+    question: "¿Cuál es la regla funcional ante la entrega o el envío repetido de una misma solicitud u orden?"
+    reason: >
+      El procesamiento at-least-once admite duplicados y las compras
+      duplicadas son un problema declarado en el contexto, pero no se define
+      la regla de negocio frente a la repetición.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      El procesamiento de órdenes y pagos debe ser idempotente. La recepción
+      repetida de una misma solicitud, mensaje u operación no puede producir
+      efectos de negocio adicionales después de la primera ejecución válida.
+
+      Cada orden tendrá un identificador único y las operaciones que puedan ser
+      repetidas deberán poder identificarse de forma inequívoca.
+
+      Si una orden ya fue confirmada y sus tickets se encuentran vendidos, un
+      nuevo procesamiento de la misma operación no debe generar otro pago,
+      otra venta ni nuevas modificaciones de inventario. El sistema debe
+      retornar o conservar el resultado previamente obtenido.
+
+      Si la orden se encuentra en PENDING_CONFIRMATION y ya existe un intento
+      de pago activo, una recepción duplicada de la misma operación no debe
+      iniciar un segundo pago. El sistema debe conservar el intento existente
+      y retornar el estado actual del procesamiento.
+
+      Una orden no puede tener más de un intento de pago activo simultáneamente.
+
+      Los mensajes duplicados recibidos como consecuencia de la entrega
+      at-least-once deben poder reprocesarse de forma segura sin duplicar pagos,
+      reservas, ventas ni transiciones de estado.
+
+      Los estados terminales CONFIRMED, REJECTED, FAILED y EXPIRED no deben
+      ejecutar nuevamente efectos de negocio al recibir duplicados de una
+      operación ya procesada.
+
+      Un nuevo intento de pago autorizado después de un fallo recuperable se
+      considera una operación diferente y deberá contar con una identidad
+      propia, manteniendo siempre la misma orden de compra.
+
+      La estrategia técnica utilizada para implementar la idempotencia,
+      incluyendo idempotency keys, conditional writes, almacenamiento de
+      operaciones procesadas o mecanismos equivalentes, será definida durante
+      la etapa de arquitectura.
+    impact:
+      - ALT-003
+      - ERR-004
+      - FR-007
+      - TC-010
+      - EVAL-008
+
+  - id: HV-012
+    priority: HIGH
+    question: "¿Cuándo empieza exactamente el plazo de diez minutos, y la reserva se identifica por orden, cliente, entradas o evento y cantidad?"
+    Reason: "El máximo de diez minutos está definido, pero no su origen temporal ni el alcance de la reserva. Afecta expiración, liberación y concurrencia"
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      El plazo máximo de diez minutos comienza en el momento en que el backend
+      crea exitosamente la reserva de todos los tickets solicitados por la orden.
+
+      La selección de asientos realizada por el usuario antes de iniciar
+      formalmente la compra no crea una reserva ni inicia el temporizador.
+
+      La reserva está asociada a una única orden de compra y contiene exactamente
+      los tickets individuales solicitados por dicha orden.
+
+      La reserva debe ser atómica: si alguno de los tickets solicitados no está
+      disponible al momento de intentar crearla, no se crea ninguna reserva para
+      esa orden.
+
+      Una vez creada la reserva, todos sus tickets quedan en estado RESERVED y
+      permanecen bloqueados para otras órdenes durante un máximo de diez minutos.
+
+      Si la compra no se confirma antes del vencimiento del plazo, la reserva
+      expira y todos los tickets asociados deben liberarse conjuntamente,
+      regresando al estado AVAILABLE.
+
+      No se permiten expiraciones ni liberaciones parciales de una reserva.
+    impact:
+      - FR-004
+      - FR-011
+      - BR-002
+      - ST-002
+      - VAL-001
+      - VAL-003
+      - Domain:Reservation
+
+  - id: HV-013
+    priority: MEDIUM
+    question: "¿Los reportes operativos, contables y de inventario están dentro del alcance funcional, o solo debe preservarse la semántica de los estados?"
+    reason: >
+      El requerimiento menciona el impacto de los estados en los reportes,
+      pero no pide consultar ni generar reportes. El alcance no debe ampliarse
+      ni reducirse sin autorización.
+    decision: PENDING
+    answer: null
+    impact:
+      - Domain:Report
+      - DS-004
+      - DS-005
+
+  - id: HV-014
+    priority: MEDIUM
+    question: "¿Qué actores, roles y reglas de autenticación y autorización aplican a crear eventos, comprar, consultar órdenes y emitir cortesías?"
+    reason: >
+      La seguridad es criterio de evaluación, pero el requerimiento no define
+      quién crea eventos, quién compra ni qué permisos aplican.
+    decision: PENDING
+    answer: null
+    impact:
+      - Actors:Usuario/cliente
+      - FR-001
+      - FR-004
+      - FR-009
+      - FR-012
+      - NFR-010
+      - EVAL-006
+
+  - id: HV-015
+    priority: MEDIUM
+    question: "¿Cuáles son los umbrales verificables de concurrencia, throughput y latencia bajo carga?"
+    reason: >
+      "Miles de solicitudes", "eficiente" y "tiempos de respuesta bajos" no
+      permiten una verificación objetiva y el analista no puede inventar
+      cifras.
+    decision: PENDING
+    answer: null
+    impact:
+      - NFR-001
+      - NFR-002
+      - AC-007
+      - EVAL-005
+
+  - id: HV-016
+    priority: MEDIUM
+    question: "¿Qué validaciones aplican a la fecha y la capacidad del evento (zona horaria, fechas pasadas, cero, valores negativos)?"
+    reason: >
+      El requerimiento solo enumera los campos básicos del evento, sin reglas
+      de validación.
+    decision: PENDING
+    answer: null
+    impact:
+      - FR-001
+      - AC-001
+      - Domain:Event
+
+  - id: HV-017
+    priority: HIGH
+    question: "¿Cuál es la cardinalidad entre una orden, una reserva y las entradas o cantidades solicitadas, y puede una orden abarcar más de un evento?"
+    reason: >
+      La relación entre orden, reserva y entradas no está definida. Afecta el
+      modelo de dominio, la atomicidad y la consulta de orden.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Cada orden de compra pertenece a un único evento y solicita uno o más
+      tickets individuales de ese evento.
+
+      Una orden no puede incluir tickets pertenecientes a eventos diferentes.
+
+      La orden se procesa de forma atómica: todos los tickets solicitados deben
+      poder reservarse y posteriormente adquirirse, o la operación completa
+      debe fallar. No se permiten ventas parciales.
+
+      Una orden puede tener como máximo una reserva activa. La reserva, cuando
+      existe, agrupa exactamente los tickets solicitados por la orden.
+
+      Cada ticket pertenece a un único evento y puede formar parte como máximo
+      de una reserva activa al mismo tiempo.
+
+      La cardinalidad inicial queda definida como:
+
+      Event 1 -> N Ticket
+      Event 1 -> N Order
+      Order 1 -> N Ticket requested
+      Order 1 -> 0..1 Reservation
+      Reservation 1 -> N Ticket
+    impact:
+      - Domain:Order
+      - Domain:Reservation
+      - Domain:Ticket
+      - FR-004
+      - FR-009
+
+  - id: HV-018
+    priority: HIGH
+    question: "¿Cuál es el estado inicial de la orden cuyo identificador se retorna, y qué debe ocurrir si el encolado falla?"
+    reason: >
+      Se exige retornar un identificador de orden inmediatamente, sin definir
+      su estado inicial ni el resultado de una aceptación fallida.
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La orden se crea únicamente después de que todos los tickets solicitados
+      hayan podido reservarse correctamente de forma atómica.
+
+      La orden tendrá como estado inicial CREATED.
+
+      Después de crear la orden y su reserva, el sistema debe intentar encolar
+      la solicitud para continuar con el procesamiento asíncrono.
+
+      Si el encolado se realiza correctamente, la orden puede continuar al
+      siguiente estado de procesamiento definido para el flujo asíncrono.
+
+      Si el encolado falla de forma definitiva y la solicitud no puede ser
+      aceptada para procesamiento, la orden debe finalizar en estado FAILED.
+
+      En ese caso, la reserva asociada debe cancelarse y todos los tickets
+      reservados deben liberarse conjuntamente, regresando a AVAILABLE.
+
+      El sistema no debe mantener tickets reservados si la orden no pudo ser
+      enviada al flujo asíncrono.
+
+      El identificador de orden solo debe retornarse al cliente cuando el sistema
+      haya creado de forma consistente la orden y haya determinado que la
+      solicitud puede continuar o que existe un estado persistido consultable
+      para informar su resultado.
+
+      No se permite dejar una orden en un estado intermedio indefinido por un
+      fallo de encolado.
+    impact:
+      - FR-005
+      - FR-006
+      - FR-009
+      - MF-002
+      - AC-003
+
+  - id: HV-019
+    priority: MEDIUM
+    question: "¿DynamoDB Local es obligatorio, o puede usarse cualquier otra persistencia NoSQL?"
+    reason: >
+      El stack permite "DynamoDB Local u otra solución de persistencia", el
+      Objetivo exige persistencia NoSQL y el Entregable 5 enumera DynamoDB
+      Local entre las dependencias del docker-compose.
+    decision: PENDING
+    answer: null
+    impact:
+      - TC-004
+      - NFR-006
+      - DEL-005
+
+  - id: HV-020
+    priority: LOW
+    question: "¿Qué significa \"evento disponible\" al consultar eventos?"
+    reason: >
+      El Objetivo habla de consultar eventos disponibles sin definir el
+      criterio de disponibilidad de un evento.
+    decision: PENDING
+    answer: null
+    impact:
+      - FR-002
+      - AC-002
+      - MF-001
+
+  - id: HV-021
+    priority: LOW
+    question: "¿Qué resultado debe obtenerse al consultar una orden inexistente?"
+    reason: >
+      El Requisito Funcional 4 solo describe la consulta de una orden
+      existente; el resultado para un identificador desconocido no está
+      definido.
+    decision: PENDING
+    answer: null
+    impact:
+      - ERR-006
+      - FR-009
+      - AC-006
+
+gate:
+  blocking_items:
+    - HV-001
+    - HV-002
+    - HV-003
+    - HV-004
+    - HV-005
+    - HV-006
+    - HV-008
+    - HV-009
+    - HV-010
+    - HV-011
+    - HV-012
+    - HV-017
+    - HV-018
+
+  pending_blocking_items:
+    - HV-001
+    - HV-002
+    - HV-003
+    - HV-004
+    - HV-005
+    - HV-006
+    - HV-008
+    - HV-009
+    - HV-010
+    - HV-011
+    - HV-012
+    - HV-017
+    - HV-018
+
+  non_blocking_pending_items:
+    - HV-007
+    - HV-013
+    - HV-014
+    - HV-015
+    - HV-016
+    - HV-019
+    - HV-020
+    - HV-021
+
+  architecture_can_start: false
