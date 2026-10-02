@@ -1,0 +1,724 @@
+openapi: 3.0.3
+
+info:
+  title: Ticketing Event Processing API
+  version: 1.0.0
+  description: |
+    HTTP contract of the Ticketing Event Processing Platform.
+
+    Status: PROPOSED (architecture version 1, pending Human Architecture Review).
+    Source of truth: feature-spec/ticketing.feature-spec.v4.md.
+
+    Conventions:
+    - Every operation carries its stable identifier in `x-id` and its Feature
+      Specification anchors in `x-source-ids`.
+    - All timestamps are ISO-8601 instants in UTC.
+    - Errors use Problem Details (`application/problem+json`) with a stable `code`.
+    - Items marked "depends on FG-xxx" or "depends on AV-xxx" are subject to the
+      pending human decision with that identifier.
+    - Numeric limits are proposed initial values, not production guarantees.
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local environment (Docker Compose)
+
+tags:
+  - name: Events
+    description: Event management and availability
+  - name: Orders
+    description: Purchase initiation and Order status
+
+security:
+  - cognitoJwt: []
+
+paths:
+
+  /events:
+    post:
+      operationId: createEvent
+      x-id: API-001
+      x-source-ids: [MF-001, FR-001, FR-003, FR-018, FR-019, BR-016, BR-021, VAL-006, VAL-007, VAL-008, VAL-009, AC-001, AC-017, AC-026, AC-028]
+      x-required-authority: ADMIN
+      x-related-adrs: [ADR-004, ADR-013, ADR-016]
+      tags: [Events]
+      summary: Create an Event with its individual tickets
+      description: |
+        Creates an Event and its complete ticket inventory. Tickets flagged as
+        complimentary are created directly in `COMPLIMENTARY`; all others in
+        `AVAILABLE`. The Event becomes visible only after its whole inventory
+        has been written. Complimentary tickets cannot be added or converted
+        after creation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Event created with a consistent inventory.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventCreated'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+    get:
+      operationId: listEvents
+      x-id: API-002
+      x-source-ids: [MF-002, FR-002, FR-018, FR-019, BR-012, BR-022, AC-002, AC-028]
+      x-required-authority: ADMIN or CUSTOMER (ADMIN access depends on AV-005)
+      x-related-adrs: [ADR-021, ADR-013]
+      tags: [Events]
+      summary: List future enabled Events
+      description: |
+        Returns enabled Events whose start instant is in the future, ordered by
+        start instant ascending. Sold-out Events are included and flagged.
+        Past Events are not returned. The sold-out flag is informative.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Page of future enabled Events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPage'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /events/{eventId}/availability:
+    get:
+      operationId: getEventAvailability
+      x-id: API-003
+      x-source-ids: [MF-002, FR-003, FR-012, FR-018, FR-019, BR-012, BR-018, AC-010, AC-011, AC-018, AC-028, AC-030]
+      x-required-authority: ADMIN or CUSTOMER (ADMIN access depends on AV-005)
+      x-related-adrs: [ADR-021, ADR-001, ADR-013]
+      tags: [Events]
+      summary: Get the current availability of an Event
+      description: |
+        Returns the Event and the current state of each of its tickets, read on
+        demand. Only tickets in `AVAILABLE` count as commercial availability.
+        The response is an informative snapshot and does not guarantee
+        acquisition; availability is revalidated when a purchase is started.
+        Calling this operation never creates a Reservation.
+        Behaviour for past Events depends on FG-005.
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Current availability snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAvailability'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/EventNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /orders:
+    post:
+      operationId: startPurchase
+      x-id: API-004
+      x-source-ids: [MF-003, FR-004, FR-005, FR-006, FR-010, FR-016, FR-017, FR-018, FR-019, BR-013, BR-014, BR-019, VAL-002, VAL-010, VAL-011, ALT-002, ALT-003, ALT-006, ERR-001, ERR-002, ERR-007, AC-003, AC-004, AC-007, AC-016, AC-022, AC-028, AC-031]
+      x-required-authority: CUSTOMER
+      x-related-adrs: [ADR-002, ADR-003, ADR-006, ADR-007, ADR-013, ADR-016]
+      tags: [Orders]
+      summary: Formally start a purchase
+      description: |
+        Revalidates and atomically reserves all requested tickets of a single
+        Event, creates the Order in `CREATED` with its Reservation (valid for at
+        most ten minutes) and enqueues it for asynchronous payment processing.
+        Returns the Order identifier without waiting for the payment.
+
+        All-or-nothing: if any requested ticket is not available, the whole
+        request is rejected and no Reservation, Order or Order identifier is
+        created.
+
+        The owner of the Order is derived from the JWT; the request carries no
+        user identifier.
+
+        Idempotency: the `Idempotency-Key` header identifies the operation for
+        the authenticated customer. Repeating the same operation returns the
+        existing Order without repeating effects.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartPurchaseRequest'
+      responses:
+        '201':
+          description: |
+            The Order was created consistently and is queryable. `status` is
+            `CREATED` when the request was accepted for asynchronous
+            processing, or `FAILED` (cause `PROCESSING_UNAVAILABLE`) when
+            enqueueing failed definitively and the Reservation was reverted.
+          headers:
+            Location:
+              description: Relative URL of the created Order.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '200':
+          description: |
+            Idempotent replay. The operation had already been registered; the
+            existing Order is returned in its current state and no effect is
+            repeated.
+          headers:
+            Idempotency-Replayed:
+              description: Always `true` on a replay.
+              schema:
+                type: boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/EventNotFound'
+        '409':
+          description: |
+            The request was rejected and nothing was created. `code` is
+            `TICKETS_UNAVAILABLE` when at least one requested ticket is not
+            `AVAILABLE`, or `EVENT_NOT_ON_SALE` when the Event is not on sale
+            (depends on FG-005).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/PurchaseConflictProblem'
+        '422':
+          description: |
+            The request was rejected and nothing was created. `code` is
+            `UNKNOWN_TICKETS` when at least one ticket does not exist in the
+            Event, or `IDEMPOTENCY_KEY_REUSED` when the idempotency key was
+            already used by the same customer for a different request.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      x-id: API-005
+      x-source-ids: [MF-004, FR-009, FR-018, FR-019, BR-023, VAL-011, ALT-007, ERR-006, ERR-009, AC-006, AC-027, AC-028]
+      x-required-authority: CUSTOMER (owner only)
+      x-related-adrs: [ADR-013, ADR-016]
+      tags: [Orders]
+      summary: Get the state of an own Order
+      description: |
+        Returns the current state of an Order owned by the authenticated
+        customer, including terminal Orders. When the Order did not end
+        successfully, a functional cause is included without internal technical
+        detail.
+
+        An Order that does not exist and an Order that belongs to another
+        customer produce exactly the same response.
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Current state of the Order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+components:
+
+  securitySchemes:
+    cognitoJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token issued by Amazon Cognito. Roles are taken from the
+        `cognito:groups` claim (`ADMIN`, `CUSTOMER`). See ADR-013 and ADR-014.
+
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      description: Server-generated Event identifier.
+      schema:
+        type: string
+        format: uuid
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      description: |
+        Order identifier. A malformed identifier yields the same response as a
+        non-existent Order.
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Client-generated key that identifies the purchase operation for the
+        authenticated customer. Retained for at least 24 hours.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 64
+        pattern: '^[A-Za-z0-9_-]+$'
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of Events to return.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor returned by a previous page.
+      schema:
+        type: string
+        maxLength: 1024
+
+  schemas:
+
+    TicketState:
+      type: string
+      description: Ticket states DS-001 to DS-005. A ticket has exactly one.
+      enum:
+        - AVAILABLE
+        - RESERVED
+        - PENDING_CONFIRMATION
+        - SOLD
+        - COMPLIMENTARY
+
+    OrderStatus:
+      type: string
+      description: Order states DS-006 to DS-010.
+      enum:
+        - CREATED
+        - CONFIRMED
+        - REJECTED
+        - FAILED
+        - EXPIRED
+
+    TicketId:
+      type: string
+      description: Ticket identifier, unique within its Event.
+      minLength: 1
+      maxLength: 32
+      pattern: '^[A-Za-z0-9_-]+$'
+
+    CreateEventRequest:
+      type: object
+      additionalProperties: false
+      required: [name, venue, startsAt, capacity, tickets]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Must not be blank (VAL-006).
+        venue:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Must not be blank (VAL-006).
+        startsAt:
+          type: string
+          format: date-time
+          description: Event instant, interpreted in UTC; must be in the future (VAL-007).
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 5000
+          description: |
+            Total capacity (VAL-008). Must equal the number of tickets,
+            including complimentary ones (VAL-009, BR-021). The maximum depends
+            on FG-002.
+        tickets:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          description: Individual tickets. Identifiers must be unique within the request.
+          items:
+            $ref: '#/components/schemas/NewTicket'
+
+    NewTicket:
+      type: object
+      additionalProperties: false
+      required: [ticketId]
+      properties:
+        ticketId:
+          $ref: '#/components/schemas/TicketId'
+        complimentary:
+          type: boolean
+          default: false
+          description: When true the ticket is created in `COMPLIMENTARY` (BR-016).
+
+    EventCreated:
+      type: object
+      required: [eventId, name, venue, startsAt, capacity, availableTickets, complimentaryTickets, createdAt]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        venue:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+        availableTickets:
+          type: integer
+          description: Tickets created in `AVAILABLE`.
+        complimentaryTickets:
+          type: integer
+          description: Tickets created in `COMPLIMENTARY`.
+        createdAt:
+          type: string
+          format: date-time
+
+    EventSummary:
+      type: object
+      required: [eventId, name, venue, startsAt, capacity, soldOut]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        venue:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+        soldOut:
+          type: boolean
+          description: |
+            True when the Event currently has zero tickets in `AVAILABLE`
+            (commercial availability zero). Informative. Depends on AV-001.
+
+    EventPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventSummary'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Present when more Events are available.
+
+    TicketAvailability:
+      type: object
+      required: [ticketId, state]
+      properties:
+        ticketId:
+          $ref: '#/components/schemas/TicketId'
+        state:
+          $ref: '#/components/schemas/TicketState'
+
+    AvailabilitySummary:
+      type: object
+      required: [available, reserved, pendingConfirmation, sold, complimentary]
+      properties:
+        available:
+          type: integer
+          description: Commercial availability (BR-012).
+        reserved:
+          type: integer
+        pendingConfirmation:
+          type: integer
+        sold:
+          type: integer
+        complimentary:
+          type: integer
+
+    EventAvailability:
+      type: object
+      required: [eventId, name, venue, startsAt, capacity, summary, tickets, generatedAt, informative]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        venue:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+        summary:
+          $ref: '#/components/schemas/AvailabilitySummary'
+        tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketAvailability'
+        generatedAt:
+          type: string
+          format: date-time
+          description: Instant at which the snapshot was read.
+        informative:
+          type: boolean
+          description: Always true. The snapshot does not guarantee acquisition (BR-018).
+
+    StartPurchaseRequest:
+      type: object
+      additionalProperties: false
+      required: [eventId, ticketIds]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: The single Event the Order belongs to (BR-014).
+        ticketIds:
+          type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+          description: |
+            Tickets of that Event to purchase. The maximum depends on FG-001.
+          items:
+            $ref: '#/components/schemas/TicketId'
+
+    FailureCause:
+      type: object
+      required: [code, message]
+      description: Functional cause of a non-confirmed Order, without technical detail.
+      properties:
+        code:
+          type: string
+          enum:
+            - PAYMENT_DECLINED
+            - PROCESSING_UNAVAILABLE
+            - PROCESSING_FAILED
+            - RESERVATION_EXPIRED
+          description: |
+            `PAYMENT_DECLINED` for `REJECTED`; `PROCESSING_UNAVAILABLE` and
+            `PROCESSING_FAILED` for `FAILED`; `RESERVATION_EXPIRED` for `EXPIRED`.
+        message:
+          type: string
+
+    Order:
+      type: object
+      required: [orderId, eventId, ticketIds, status, createdAt, updatedAt, reservationExpiresAt]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        ticketIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketId'
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        failureCause:
+          allOf:
+            - $ref: '#/components/schemas/FailureCause'
+          nullable: true
+          description: Present when status is `REJECTED`, `FAILED` or `EXPIRED`.
+        reservationExpiresAt:
+          type: string
+          format: date-time
+          description: Instant at which the Reservation expires if not confirmed (BR-002).
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      description: Problem Details with a stable machine-readable code (ADR-016).
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - EVENT_NOT_FOUND
+            - ORDER_NOT_FOUND
+            - TICKETS_UNAVAILABLE
+            - EVENT_NOT_ON_SALE
+            - UNKNOWN_TICKETS
+            - IDEMPOTENCY_KEY_REUSED
+            - PAYLOAD_TOO_LARGE
+            - RATE_LIMITED
+            - SERVICE_UNAVAILABLE
+            - INTERNAL_ERROR
+        traceId:
+          type: string
+
+    ValidationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            errors:
+              type: array
+              items:
+                type: object
+                required: [field, reason]
+                properties:
+                  field:
+                    type: string
+                  reason:
+                    type: string
+
+    PurchaseConflictProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            unavailableTicketIds:
+              type: array
+              description: Present when `code` is `TICKETS_UNAVAILABLE`.
+              items:
+                $ref: '#/components/schemas/TicketId'
+
+  responses:
+    ValidationError:
+      description: The request is malformed or violates an input validation. Nothing was created.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+    Unauthenticated:
+      description: Missing or invalid JWT.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: The authenticated identity lacks the required authority.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    EventNotFound:
+      description: The Event does not exist or is not enabled.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    OrderNotFound:
+      description: |
+        Resource not found. Returned identically when the Order does not exist
+        and when it belongs to another customer (BR-023).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PayloadTooLarge:
+      description: The request body exceeds the allowed size.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RateLimited:
+      description: Too many requests for this identity.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: |
+        Temporary unavailability after bounded internal retries. The request
+        may be repeated; a purchase must be repeated with the same
+        `Idempotency-Key`.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

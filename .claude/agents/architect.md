@@ -866,7 +866,7 @@ No modificar:
 requirements/**
 feature-spec/**
 human-review/ticketing.functional-review.yaml
-agents/**
+.claude/agents/**
 src/**
 infra/**
 ```
