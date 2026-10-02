@@ -7,9 +7,9 @@ source:
   version: 2
 
 review:
-  status: PENDING
+  status: APPROVED
   reviewer: human
-  reviewed_at: null
+  reviewed_at: 2026-10-01
 
 # Allowed human decisions:
 # CONFIRMED
@@ -38,9 +38,7 @@ decisions:
 
       Los estados definidos en el requerimiento describen el estado de los
       tickets. El estado de la orden debe ser coherente con el estado conjunto
-      de sus tickets, pero el modelo exacto de estados de Order será definido
-      posteriormente para poder representar también situaciones como rechazo,
-      expiración o fallo de procesamiento.
+      de sus tickets, pero el modelo exacto de estados esta definido en HV-009, HV-011 y HV-018.
 
       Las transiciones que afecten una orden y sus tickets deben preservar esta
       consistencia de forma atómica.
@@ -196,8 +194,7 @@ decisions:
       El estado COMPLIMENTARY es final y no contable, de acuerdo con el
       requerimiento original.
 
-      La definición de qué actor o rol tiene autorización para crear eventos y
-      asignar las cortesías será resuelta en HV-014.
+      El perfil ADMIN define las cortesías durante la creación del evento.
     impact:
       - DS-005
       - BR-007
@@ -246,8 +243,34 @@ decisions:
     reason: >
       La semántica de "tiempo real" no está definida y el analista no debe
       asumir una tecnología ni un modo de entrega.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La disponibilidad en tiempo real se interpretará como una consulta bajo
+      demanda del estado actual de los tickets de un evento.
+
+      Cuando un usuario ingrese al flujo de compra o consulte un evento, el
+      sistema deberá obtener y retornar la disponibilidad vigente de sus
+      ubicaciones en ese momento.
+
+      No se requiere mantener un canal de actualización continua hacia el
+      cliente mediante streaming, SSE o WebSocket.
+
+      La disponibilidad mostrada al usuario es informativa y no constituye una
+      garantía de adquisición del ticket, ya que otros usuarios pueden intentar
+      reservar la misma ubicación de forma concurrente.
+
+      La disponibilidad efectiva y autoritativa deberá validarse nuevamente
+      cuando el usuario inicie formalmente la compra mediante la acción de
+      reservar o "Ir a pagar".
+
+      Si alguno de los tickets seleccionados ya no se encuentra disponible en
+      ese momento, la reserva completa deberá ser rechazada de acuerdo con la
+      regla de atomicidad de la orden.
+
+      Las alternativas de actualización continua, fan-out de eventos y
+      estrategias de escalabilidad para escenarios de muy alta concurrencia
+      podrán documentarse posteriormente como decisiones o evoluciones de
+      arquitectura, pero quedan fuera del alcance funcional de esta versión.
     impact:
       - FR-012
       - CAP-002
@@ -317,9 +340,7 @@ decisions:
       Cuando la reserva supere el tiempo máximo de diez minutos sin que la compra
       haya sido confirmada, la orden debe finalizar en estado EXPIRED.
 
-      Cuando la compra finalice satisfactoriamente, la orden debe quedar en un
-      estado de confirmación exitosa, cuya denominación definitiva podrá
-      consolidarse junto con la máquina completa de estados de Order.
+      Cuando la compra finalice satisfactoriamente,la orden debe finalizar en estado CONFIRMED. 
 
       En los estados REJECTED, FAILED o EXPIRED ningún ticket de la orden puede
       permanecer vendido. Los tickets que hubieran sido reservados deben
@@ -333,7 +354,8 @@ decisions:
       internos.
 
       No se permiten resultados parciales: una orden nunca puede finalizar con
-      solo una parte de sus tickets vendidos.    
+      solo una parte de sus tickets vendidos. 
+  
     impact:
       - FR-008
       - FR-009
@@ -348,8 +370,32 @@ decisions:
       El stack permite "LocalStack u cualquier otra solución que cumpla esta
       función", pero las Especificaciones Técnicas ordenan configurar SQS.
       Es una contradicción sobre una restricción tecnológica.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Amazon SQS será la tecnología de mensajería utilizada para el procesamiento
+      asíncrono de órdenes.
+
+      Para el entorno local de desarrollo y pruebas se utilizará LocalStack para
+      emular Amazon SQS, manteniendo el mismo modelo de integración que se usaría
+      posteriormente en AWS.
+
+      Se utilizará una cola SQS Standard, ya que el requerimiento exige una
+      semántica de procesamiento at-least-once y esta opción permite demostrar
+      explícitamente el manejo seguro de mensajes duplicados mediante
+      idempotencia en la aplicación.
+
+      La solución no dependerá de garantías de orden estricto ni de deduplicación
+      provistas por una cola FIFO. La aplicación será responsable de garantizar
+      que la recepción repetida de un mismo mensaje no produzca pagos, ventas,
+      reservas ni modificaciones de inventario duplicadas.
+
+      La estrategia concreta de consumo, visibility timeout, retries, Dead Letter
+      Queue y demás parámetros operativos de SQS será definida posteriormente en
+      la etapa de arquitectura.
+
+      Para esta prueba se prioriza LocalStack durante el desarrollo, por lo que
+      no es necesario incurrir en costos de AWS para ejecutar el sistema
+      localmente.
     impact:
       - TC-005
       - TC-010
@@ -409,7 +455,7 @@ decisions:
   - id: HV-012
     priority: HIGH
     question: "¿Cuándo empieza exactamente el plazo de diez minutos, y la reserva se identifica por orden, cliente, entradas o evento y cantidad?"
-    Reason: "El máximo de diez minutos está definido, pero no su origen temporal ni el alcance de la reserva. Afecta expiración, liberación y concurrencia"
+    reason: "El máximo de diez minutos está definido, pero no su origen temporal ni el alcance de la reserva. Afecta expiración, liberación y concurrencia"
     decision: CONFIRMED_WITH_CHANGE
     answer: >
       El plazo máximo de diez minutos comienza en el momento en que el backend
@@ -449,8 +495,24 @@ decisions:
       El requerimiento menciona el impacto de los estados en los reportes,
       pero no pide consultar ni generar reportes. El alcance no debe ampliarse
       ni reducirse sin autorización.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La generación, consulta o exportación de reportes operativos, contables
+      y de inventario no forma parte del alcance funcional de esta prueba.
+
+      El sistema sí debe preservar correctamente la semántica de los estados
+      de los tickets, ya que estos estados determinan su impacto futuro en
+      dichos reportes.
+
+      RESERVED y PENDING_CONFIRMATION no representan ventas.
+
+      SOLD representa una venta confirmada.
+
+      COMPLIMENTARY es un estado final que consume capacidad del evento, pero
+      no debe contabilizarse como venta.
+
+      No se implementarán endpoints, procesos ni funcionalidades específicas
+      de reporting en esta versión.
     impact:
       - Domain:Report
       - DS-004
@@ -462,8 +524,41 @@ decisions:
     reason: >
       La seguridad es criterio de evaluación, pero el requerimiento no define
       quién crea eventos, quién compra ni qué permisos aplican.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      El sistema requerirá autenticación mediante JWT y utilizará Amazon Cognito
+      como proveedor de identidad responsable de autenticar a los usuarios y
+      emitir los tokens de acceso.
+
+      Se definirán inicialmente dos roles funcionales: ADMIN y CUSTOMER.
+
+      Los roles serán representados mediante grupos de Amazon Cognito e incluidos
+      en el JWT mediante el claim cognito:groups. El backend transformará estos
+      grupos en autoridades de aplicación para aplicar las reglas de
+      autorización.
+
+      El rol ADMIN podrá crear eventos y definir las ubicaciones
+      COMPLIMENTARY únicamente durante la creación del evento.
+
+      El rol CUSTOMER podrá consultar eventos y disponibilidad, iniciar compras
+      y consultar el estado de sus propias órdenes.
+
+      Un CUSTOMER no podrá consultar órdenes pertenecientes a otros usuarios.
+      La identidad del propietario de una orden deberá derivarse de la identidad
+      autenticada presente en el JWT y no de un identificador de usuario enviado
+      libremente por el cliente.
+
+      El backend actuará como OAuth2 Resource Server y será responsable de
+      validar los JWT emitidos por Cognito antes de permitir el acceso a
+      operaciones protegidas.
+
+      La implementación de interfaces de login, registro, recuperación de
+      contraseña o administración visual de usuarios queda fuera del alcance
+      de esta prueba.
+
+      Los detalles de configuración de Cognito, OAuth2/OIDC, mapeo de grupos,
+      expiración de tokens y despliegue serán definidos en la etapa de
+      arquitectura.
     impact:
       - Actors:Usuario/cliente
       - FR-001
@@ -480,8 +575,34 @@ decisions:
       "Miles de solicitudes", "eficiente" y "tiempos de respuesta bajos" no
       permiten una verificación objetiva y el analista no puede inventar
       cifras.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Para esta implementación se establecerán objetivos de rendimiento
+      verificables que permitan evaluar el comportamiento del sistema bajo
+      concurrencia, sin pretender representar el dimensionamiento definitivo
+      de un entorno productivo.
+
+      La prueba de carga tendrá como objetivo soportar al menos 1.000 usuarios
+      concurrentes y una carga sostenida aproximada de 200 solicitudes por
+      segundo.
+
+      Para las consultas de disponibilidad se establece como objetivo un tiempo
+      de respuesta p95 inferior a 500 milisegundos.
+
+      Para las operaciones síncronas asociadas al inicio de una compra y al
+      intento de reserva de tickets se establece como objetivo un tiempo de
+      respuesta p95 inferior a 1 segundo.
+
+      El procesamiento posterior de pago y confirmación de la compra es
+      asíncrono y, por tanto, no forma parte del tiempo de respuesta síncrono
+      esperado para iniciar una orden.
+
+      Independientemente del volumen de carga, los criterios funcionales
+      prioritarios son mantener cero sobreventas y cero ventas duplicadas.
+
+      Estos valores representan objetivos de prueba para esta solución y podrán
+      revisarse en un entorno productivo después de realizar pruebas de carga,
+      análisis de capacidad y dimensionamiento de infraestructura.
     impact:
       - NFR-001
       - NFR-002
@@ -494,8 +615,36 @@ decisions:
     reason: >
       El requerimiento solo enumera los campos básicos del evento, sin reglas
       de validación.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La creación de un evento debe validar como mínimo nombre, lugar,
+      fecha y hora del evento, y capacidad total.
+
+      El nombre y el lugar son obligatorios y no pueden estar vacíos.
+
+      La fecha y hora del evento son obligatorias y deben representar un
+      instante futuro respecto al momento de creación del evento.
+
+      La referencia temporal del sistema será UTC. No se dejará fija una zona
+      horaria regional como America/Bogota dentro de las reglas funcionales.
+
+      La capacidad total del evento debe ser un número entero mayor que cero.
+
+      Como el sistema manejará tickets o ubicaciones individuales, la capacidad
+      total del evento debe coincidir con la cantidad total de ubicaciones
+      creadas para ese evento.
+
+      Las ubicaciones COMPLIMENTARY forman parte de la capacidad total del evento,
+      aunque no formen parte de la disponibilidad comercial.
+
+      Por ejemplo, un evento con capacidad 500 puede tener 480 tickets AVAILABLE
+      y 20 tickets COMPLIMENTARY, manteniendo una capacidad total de 500.
+
+      No debe permitirse crear un evento con capacidad cero, negativa o
+      inconsistente con la cantidad de ubicaciones definidas.
+
+      El formato concreto de almacenamiento, serialización y conversión de fechas
+      será definido posteriormente durante la etapa de arquitectura.
     impact:
       - FR-001
       - AC-001
@@ -587,8 +736,29 @@ decisions:
       El stack permite "DynamoDB Local u otra solución de persistencia", el
       Objetivo exige persistencia NoSQL y el Entregable 5 enumera DynamoDB
       Local entre las dependencias del docker-compose.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Amazon DynamoDB será la base de datos NoSQL utilizada como persistencia
+      objetivo del sistema.
+
+      Para desarrollo y pruebas locales se utilizará DynamoDB Local, permitiendo
+      ejecutar la solución sin depender de infraestructura AWS real.
+
+      DynamoDB almacenará la información necesaria de eventos, tickets,
+      órdenes, reservas y demás datos persistentes definidos posteriormente
+      durante el diseño de arquitectura.
+
+      La elección de DynamoDB busca mantener coherencia con el enfoque
+      cloud-native basado en AWS y facilitar la implementación de controles de
+      concurrencia mediante capacidades como conditional writes y operaciones
+      transaccionales.
+
+      El modelo concreto de particiones, sort keys, índices, access patterns,
+      transacciones y estrategia de consistencia será definido posteriormente
+      por el Architect Agent y no forma parte de esta decisión funcional.
+
+      La implementación local deberá ser compatible conceptualmente con la
+      utilización posterior de Amazon DynamoDB en un entorno AWS.
     impact:
       - TC-004
       - NFR-006
@@ -600,8 +770,28 @@ decisions:
     reason: >
       El Objetivo habla de consultar eventos disponibles sin definir el
       criterio de disponibilidad de un evento.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Un evento disponible es un evento cuya fecha y hora aún no han ocurrido y
+      que se encuentra habilitado para consulta y venta.
+
+      Un evento futuro puede seguir apareciendo en la consulta de eventos aunque
+      no tenga tickets disponibles para compra en ese momento.
+
+      Por lo tanto, un evento agotado no deja de considerarse disponible para
+      consulta únicamente porque su disponibilidad comercial sea cero.
+
+      La disponibilidad de tickets debe consultarse y mostrarse por separado,
+      permitiendo distinguir entre un evento futuro con tickets disponibles y
+      un evento futuro agotado.
+
+      Los eventos cuya fecha y hora ya hayan ocurrido no deben incluirse dentro
+      de la consulta normal de eventos disponibles.
+
+      La definición de un estado adicional de publicación o habilitación del
+      evento, en caso de considerarse necesario, será evaluada posteriormente
+      durante la etapa de arquitectura y no se introduce como requisito
+      funcional adicional en esta decisión.
     impact:
       - FR-002
       - AC-002
@@ -614,8 +804,27 @@ decisions:
       El Requisito Funcional 4 solo describe la consulta de una orden
       existente; el resultado para un identificador desconocido no está
       definido.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Cuando se consulte una orden inexistente, el sistema deberá responder que
+      el recurso no fue encontrado.
+
+      Una orden existente en estado REJECTED, FAILED o EXPIRED continúa siendo
+      una orden válida y consultable, por lo que deberá retornarse normalmente
+      junto con su estado y la información funcional disponible sobre el
+      resultado del procesamiento.
+
+      Si un usuario con rol CUSTOMER intenta consultar una orden que pertenece
+      a otro usuario, el sistema deberá responder igualmente como recurso no
+      encontrado, evitando revelar la existencia de órdenes pertenecientes a
+      otros clientes.
+
+      De esta forma, para un CUSTOMER no debe ser posible distinguir mediante
+      la API entre un identificador de orden inexistente y un identificador de
+      una orden que no le pertenece.
+
+      La representación HTTP concreta y el modelo de error serán definidos
+      posteriormente durante la etapa de arquitectura.
     impact:
       - ERR-006
       - FR-009
@@ -636,30 +845,6 @@ gate:
     - HV-012
     - HV-017
     - HV-018
-
-  pending_blocking_items:
-    - HV-001
-    - HV-002
-    - HV-003
-    - HV-004
-    - HV-005
-    - HV-006
-    - HV-008
-    - HV-009
-    - HV-010
-    - HV-011
-    - HV-012
-    - HV-017
-    - HV-018
-
-  non_blocking_pending_items:
-    - HV-007
-    - HV-013
-    - HV-014
-    - HV-015
-    - HV-016
-    - HV-019
-    - HV-020
-    - HV-021
-
-  architecture_can_start: false
+pending_blocking_items: []
+non_blocking_pending_items: []
+architecture_can_start: true
