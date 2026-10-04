@@ -1,0 +1,108 @@
+artifact: implementation-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/increments/INC-004.report.md
+  section: "6.2 Interpretaciones y preguntas para revisión humana"
+  increment: INC-004
+
+review:
+  status: APPROVED
+  reviewer: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: IV-013
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "ADR-031 exige que PAYMENT_REVERSAL_REQUESTED y LATE_APPROVAL_NOT_APPLIED vayan incluidos en el registro de auditoría de la transición (AuditRecord.includedCodes en el dominio), pero ticketing.data-model.v2.md §3 no tiene un atributo para persistirlo. ¿Cómo lo persiste el adaptador de INC-005?"
+    options:
+      - "(a) Añadir al item de auditoría un atributo de lista (por ejemplo includedCauses); cambio del modelo de datos"
+      - "(b) Codificarlo en el atributo cause existente (por ejemplo RESERVATION_EXPIRED+PAYMENT_REVERSAL_REQUESTED)"
+      - "(c) No persistirlo de forma explícita y deducirlo de orderTo y paymentAttemptId"
+    recommended: >
+      (a), por claridad de la evidencia de auditoría.
+    decision: CONFIRMED
+    answer: >
+      (a). Aprobado por el humano: el item de auditoría de
+      ticketing.data-model.v2.md §3 incorpora el atributo de lista
+      includedCauses (lista de códigos del catálogo de ADR-031; se omite
+      cuando está vacía). No cambia el número de items de las transacciones
+      (addendum 14/13/12/3) ni las claves. Esta decisión humana prevalece
+      sobre el modelo de datos v2 en este punto; el adaptador de INC-005 la
+      aplica sin pasar por el Architect.
+    impact:
+      - INC-005
+      - ADR-031
+      - ticketing.data-model.v2.md §3
+
+  - id: IV-014
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "¿Se aprueban las razones de cuarentena del rol worker (patrón de IV-011) y el actor de sus auditorías?"
+    options:
+      - "(a) Confirmar: TICKET_CONDITION_FAILED_ON_PAYMENT_START, TICKET_CONDITION_FAILED_ON_CONFIRMATION, TICKET_CONDITION_FAILED_ON_REJECTION, TICKET_CONDITION_FAILED_ON_PROCESSING_FAILURE, TICKET_CONDITION_FAILED_ON_EXPIRATION; actor WORKER con el identificador de la instancia"
+      - "(b) Confirmar con cambios indicados por el humano"
+    recommended: >
+      (a). Sigue el patrón aprobado en IV-011 y ADR-031 ("instancia del
+      worker o proceso").
+    decision: CONFIRMED
+    answer: >
+      (a). Se aprueban las cinco razones de cuarentena y el actor WORKER con
+      el identificador de la instancia.
+    impact:
+      - INC-004
+      - ADR-025
+      - ADR-031
+
+  - id: IV-015
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "Constantes del dominio que el Anexo A declara configurables (margen de corte 15 s Order.PAYMENT_CUTOFF; 3 reescrituras ProvisioningMessagePolicy.MAXIMUM_REPAIRS; 10 intentos y calendario de reversos ReversalPlan; shards de RESV#, REVERSAL# y PENDQ# en ShardingPolicy). ¿Cuándo se hacen configurables?"
+    options:
+      - "(a) En INC-010, con los mismos valores por defecto, igual que IV-012"
+      - "(b) Antes, en el incremento que las use"
+      - "(c) Se mantienen fijas como desviación aceptada"
+    recommended: >
+      (a). INC-010 es el incremento de configuración por entorno (CMP-021,
+      Anexo A).
+    decision: CONFIRMED
+    answer: >
+      (a). Se hacen configurables en INC-010 con los valores por defecto
+      actuales, junto con el máximo de Ticket por Order de IV-012.
+    impact:
+      - INC-010
+      - CMP-021
+
+  - id: IV-016
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "Una cancelación de pago (reverso) que el Payment Mock responde con error de contrato (4xx) o que no se envía por circuito abierto, ¿se trata como no confirmada (reprograma el reverso y consume un intento)?"
+    options:
+      - "(a) Confirmar: cualquier resultado no confirmado reprograma y consume un intento; el décimo lo agota para revisión manual (ADR-025, ADR-030); la pausa de reversos con el circuito abierto la aplica el planificador de INC-009"
+      - "(b) Un 4xx se marca de inmediato para revisión manual sin reintentos (cambia ADR-025/ADR-030; requiere Architect)"
+    recommended: >
+      (a). Es la regla de ADR-025 y ADR-030 sin cambios.
+    decision: CONFIRMED
+    answer: >
+      (a). Se confirma el tratamiento implementado en INC-004.
+    impact:
+      - INC-004
+      - INC-007
+      - INC-009
+      - ADR-025
+      - ADR-030
+
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
