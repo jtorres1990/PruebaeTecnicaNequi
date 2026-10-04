@@ -72,6 +72,10 @@ Reglas de lectura:
 - `ticketing.consolidation-addendum.v1.md` prevalece sobre los artefactos que indica en `applies_to` en los puntos que trata. En particular: el tamaño máximo de transacción es 14 items en la reserva, 13 en las transiciones terminales, 12 en el inicio de pago y 3 en la creación de Event.
 - `architecture/ticketing.functional-clarifications.v1.md` es informativo: su contenido ya está incorporado en la Feature Specification v5.
 
+## 1.2.1 Entorno local
+
+`implementation/ticketing.local-environment.v1.md` registra decisiones humanas de toolchain (`ENV-*`), la ruta del JDK 25, las imágenes fijadas para las pruebas de integración y verificaciones ya realizadas. Sus decisiones `ENV-*` son vinculantes con la misma autoridad que una respuesta humana a un `IV-*`; sus verificaciones `CONFIRMED` no se repiten como spikes, salvo la parte que el propio artefacto deja pendiente.
+
 ## 1.3 Contrato HTTP
 
 `architecture/ticketing.openapi.v2.yaml` es **autoritativo para los detalles del contrato HTTP que la Feature Specification v5 no cubre**: códigos de error, campos de respuesta, formatos de cabecera, límites de tamaño y de tasa. Ejemplos conocidos:
@@ -310,7 +314,7 @@ Lee completas la Feature Specification v5 y `ticketing.architecture.v2.md`, y to
 
 ## Step 2 — Check the toolchain
 
-Comprueba, sin instalar nada, qué hay disponible en el entorno: JDK (versión), herramienta de build, Docker. Java 25 es obligatorio (`TC-001`). Si el JDK disponible no es 25, el plan debe indicar cómo se obtendrá (por ejemplo, aprovisionamiento de toolchain del build o build en contenedor) como `IV-*`; no instales software global por tu cuenta.
+Lee `implementation/ticketing.local-environment.v1.md` y comprueba, sin instalar nada, que lo que declara sigue siendo cierto: el JDK 25 en la ruta indicada, Docker en ejecución y las imágenes fijadas disponibles. La herramienta de build y la obtención del JDK ya están decididas (`ENV-001`, `ENV-002`): no las plantees como `IV-*`. Si algo declarado ya no se cumple, regístralo como `IV-*` bloqueante; no instales software global por tu cuenta.
 
 ## Step 3 — Identify spikes
 
@@ -721,6 +725,8 @@ README.md
 ## Uso de Bash
 
 Permitido para: inspeccionar el entorno, ejecutar el build y las pruebas (incluidas las que levantan contenedores de prueba) y consultar `git status` / `git diff`.
+
+El build se ejecuta siempre con el Maven Wrapper de `ticketing/` y con `JAVA_HOME` apuntando, en la propia invocación, al JDK 25 que indica `implementation/ticketing.local-environment.v1.md`. No modifiques variables de entorno globales.
 
 No permitido: `git commit`, `git push`, reescritura del historial, instalación de software global, levantar el entorno de Docker Compose, acceder a servicios externos distintos de los repositorios de dependencias y registros de imágenes que el build necesite.
 
