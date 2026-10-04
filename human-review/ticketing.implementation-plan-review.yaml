@@ -1,0 +1,211 @@
+artifact: implementation-plan-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/ticketing.implementation-plan.v1.md
+  version: 1
+
+review:
+  status: PENDING
+  reviewer: human
+  reviewed_at: null
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: PLAN
+    type: PLAN
+    priority: HIGH
+    title: "Plan de incrementos y alcance"
+    proposal: >
+      Once incrementos en CODE_REPO/ticketing (Maven Wrapper 3.9.16, JDK 25):
+      INC-001 esqueleto multi-módulo (domain, application, infrastructure,
+      bootstrap) con puertas de calidad activas desde el inicio (cobertura de
+      líneas agregada >= 90 % solo con pruebas sin contenedores, pruebas de
+      arquitectura, detector de bloqueo) y spikes de toolchain; INC-002 dominio
+      (CMP-009); INC-003 casos de uso del rol api y puertos con dobles en
+      memoria (CMP-003 a CMP-006); INC-004 casos de uso del rol worker
+      (CMP-007, CMP-008, CMP-015, CMP-022 a CMP-024); INC-005 adaptador de
+      DynamoDB con todos los AP vigentes y transacciones de 14/13/12/3 items
+      (CMP-010); INC-006 adaptadores de SQS, MSG-001 y MSG-002, circuito de
+      publicación (CMP-011, CMP-012, CMP-025, CMP-026); INC-007 adaptador de
+      pago con circuit breaker y pausa del consumo (CMP-013, CMP-026);
+      INC-008 API HTTP API-001 a API-006, seguridad, Problem Details, límite
+      de cuerpo y limitador (CMP-001, CMP-002, CMP-016, CMP-017); INC-009
+      procesos periódicos aislados (CMP-014); INC-010 bootstrap, roles api y
+      worker, observabilidad y pruebas de integración de componentes
+      (CMP-021, CMP-018); INC-011 cierre con puerta del 90 % y matriz
+      completa. 25 spikes (SPK-001 a SPK-025) previos a los incrementos que
+      dependen de ellos. Fuera de alcance: payment-mock, local-idp,
+      infra-init, Docker Compose, Dockerfile, Terraform, CI/CD, README,
+      colección, extremo a extremo, resiliencia sobre Compose y carga
+      (AC-029 a AC-031); AC-035 lo verifican Payment Mock y QA.
+    decision: PENDING
+    answer: null
+
+  - id: IV-001
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué librerías concretas se usan donde ningún ADR las fija (cobertura, pruebas de arquitectura, detector de bloqueo, contenedores de prueba, validación de OpenAPI, doble HTTP del Payment Mock, cliente HTTP del SDK de AWS, cachés en memoria)?"
+    options:
+      - "(a) JaCoCo, ArchUnit, BlockHound, Testcontainers (LocalStack y genérico), Awaitility, swagger-request-validator-core, servidor de prueba de Reactor Netty para los dobles del Payment Mock, cliente HTTP asíncrono Netty del SDK de AWS (por defecto), Caffeine para cachés acotados"
+      - "(b) Las mismas herramientas de calidad, WireMock como doble HTTP y cachés propios sin Caffeine"
+      - "(c) Otra combinación indicada por el humano"
+    recommended: >
+      (a), sujeto a los spikes SPK-002 a SPK-006, SPK-019 y SPK-023. Si un
+      spike resulta DIFFERENT sin alternativa definida por el ADR, se abrirá un
+      IV bloqueante en una revisión de implementación.
+    decision: PENDING
+    answer: null
+    impact:
+      - INC-001
+      - INC-005
+      - INC-007
+      - INC-008
+      - ADR-034
+      - ADR-038
+      - NFR-013
+      - NFR-003
+
+  - id: IV-002
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "Si el BOM de Spring Boot 4.x gestiona JUnit 6 (plataforma Jupiter), ¿se acepta como cumplimiento de TC-014 ('JUnit 5') o se fuerza JUnit 5.x?"
+    options:
+      - "(a) Aceptar la versión gestionada por el BOM de Spring Boot 4.x (misma plataforma Jupiter; el requerimiento dice 'frameworks como JUnit 5')"
+      - "(b) Forzar JUnit 5.x, con riesgo de incompatibilidad con el soporte de pruebas de Spring Framework 7"
+    recommended: >
+      (a). Si SPK-003 muestra que el BOM gestiona JUnit 5.x, la pregunta queda
+      sin efecto.
+    decision: PENDING
+    answer: null
+    impact:
+      - INC-001
+      - TC-014
+      - SPK-003
+
+  - id: IV-003
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Cómo acceden las pruebas de contrato de CODE_REPO a ticketing.openapi.v2.yaml y payment-mock.openapi.v1.yaml, que residen en SPEC_REPO?"
+    options:
+      - "(a) Copia literal versionada en recursos de prueba de ticketing con su SHA-256 registrado y una prueba que la compara con el original cuando SPEC_REPO está disponible"
+      - "(b) Ruta externa configurable (el build depende de la presencia de SPEC_REPO)"
+      - "(c) Submódulo de git (exige tocar la raíz de CODE_REPO, prohibido para este agente)"
+    recommended: >
+      (a). Debe responderse antes de INC-007.
+    decision: PENDING
+    answer: null
+    impact:
+      - INC-007
+      - INC-008
+      - API-001
+      - API-006
+      - API-101
+      - API-102
+
+  - id: IV-004
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Se aprueban los valores por defecto propuestos en el plan §9.1 para los parámetros que la arquitectura menciona sin cuantificar?"
+    options:
+      - "(a) Aprobar la tabla §9.1: margen de aplicación del plazo de autorización 2 s; visibilidad corta de venenosos 10 s; espera creciente de bucles 1 s x2 hasta 30 s; espera de ciclos periódicos (expiración 1 s hasta 5 s; resto periodo hasta 5 x periodo); backoff de publicación 100 ms x2 con jitter dentro de 2 s; backoff de conflicto transaccional 25 ms hasta 200 ms; backoff de autorización 200 ms hasta 1 s; Retry-After 1 s (conflicto o doble fallo) y tiempo restante del circuito (mínimo 1 s); SDK de DynamoDB en modo estándar por defecto; 0 reintentos del SDK en publicación SQS; caché de Events 10.000 entradas; concurrencia de sondeo soldOut 8; recuento con todos los shards; ttl de idempotencia 24 h; apagado ordenado 35 s; puertos 8080 (/api/v1) y 8081 (gestión)"
+      - "(b) Aprobar con cambios indicados por el humano"
+      - "(c) Devolver al Architect"
+    recommended: >
+      (a). Ninguno contradice un valor aprobado; todos serán propiedades
+      configurables. Debe responderse antes de INC-003.
+    decision: PENDING
+    answer: null
+    impact:
+      - INC-003
+      - INC-004
+      - INC-005
+      - INC-006
+      - INC-007
+      - INC-008
+      - INC-009
+      - INC-010
+      - ADR-008
+      - ADR-028
+      - ADR-029
+      - ADR-035
+      - ADR-040
+
+  - id: IV-005
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "Limitador por tasa por sujeto en API-004 (ADR-032): ¿qué límite y qué librería?"
+    options:
+      - "(a) Resilience4j RateLimiter, 10 solicitudes por 10 s por sujeto, rechazo inmediato sin espera, Retry-After = segundos hasta el siguiente permiso"
+      - "(b) Bucket4j con el mismo límite"
+      - "(c) Componente propio no bloqueante (alternativa de ADR-032)"
+    recommended: >
+      (a), sujeto a SPK-023. Debe responderse antes de INC-008.
+    decision: PENDING
+    answer: null
+    impact:
+      - INC-008
+      - CMP-017
+      - ADR-032
+      - API-004
+
+  - id: IV-006
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Cómo se obtiene la evidencia del SPK-022 (claims del token de acceso de Cognito: grupos, tipo de token, cliente, sujeto, ausencia de audiencia), si el agente no puede acceder a servicios externos?"
+    options:
+      - "(a) El humano aporta el payload decodificado de un token de acceso de un user pool de prueba (sin firma ni secretos)"
+      - "(b) Se autoriza al agente a consultar la documentación oficial de AWS"
+      - "(c) Se acepta como contrato el de ADR-033 con nombres de claims configurables; la verificación contra Cognito real queda a QA/Platform (RISK-013)"
+    recommended: >
+      (a); si no es posible, (c). Debe responderse antes de INC-008.
+    decision: PENDING
+    answer: null
+    impact:
+      - INC-008
+      - SPK-022
+      - CMP-002
+      - ADR-032
+      - ADR-033
+      - FR-018
+
+  - id: IV-007
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Qué tecnología de exportación de métricas y trazas, y qué formato de logs, se usan (ADR-037 no los fija)?"
+    options:
+      - "(a) Micrometer con endpoint Prometheus en el puerto de gestión, Micrometer Tracing con puente OpenTelemetry y exportación OTLP configurable (desactivada por defecto en local), logs estructurados JSON nativos de Spring Boot"
+      - "(b) Registro directo de CloudWatch en Micrometer"
+      - "(c) Solo métricas en el endpoint de gestión, sin exportación de trazas"
+    recommended: >
+      (a). Debe responderse antes de INC-010.
+    decision: PENDING
+    answer: null
+    impact:
+      - INC-010
+      - CMP-018
+      - ADR-037
+
+gate:
+  blocking_items:
+    - PLAN
+    - IV-001
+    - IV-002
+  pending_blocking_items:
+    - PLAN
+    - IV-001
+    - IV-002
+  non_blocking_pending_items:
+    - IV-003
+    - IV-004
+    - IV-005
+    - IV-006
+    - IV-007
+  implementation_can_start: false

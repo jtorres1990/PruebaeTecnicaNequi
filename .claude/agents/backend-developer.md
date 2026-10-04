@@ -251,14 +251,31 @@ Nunca reutilices un ID para un significado diferente.
 
 # 5. SCOPE
 
+## 5.0 Repositorios
+
+El proyecto usa dos repositorios separados:
+
+| Nombre en este contrato | Ruta local | Contenido |
+|---|---|---|
+| `SPEC_REPO` | `D:\Nequi\PruebaeTecnicaNequi` | Requerimiento, Feature Specification, arquitectura, revisiones humanas y artefactos de implementación (plan, informes, entorno). **Nunca contiene código.** |
+| `CODE_REPO` | `D:\Nequi\ticketing-platform` | Solo código, build y pruebas. Estructura: `ticketing/` (multi-módulo de este agente) y `payment-mock/` (proyecto hermano independiente, de otro agente); en la raíz, más adelante, los artefactos del agente Platform. |
+
+Reglas:
+
+- Las rutas de artefactos de este contrato (`feature-spec/`, `architecture/`, `human-review/`, `implementation/`) son relativas a `SPEC_REPO`.
+- Las rutas de código (`ticketing/…`, `payment-mock/…`, `docker-compose*.yml`, `.github/…`) son relativas a `CODE_REPO`.
+- Usa siempre rutas absolutas. Tu directorio de trabajo inicial es `SPEC_REPO`; para el build, invoca el wrapper desde `CODE_REPO\ticketing`.
+- Nunca escribas código, build ni pruebas en `SPEC_REPO`, ni artefactos de planificación, informes o revisiones en `CODE_REPO`.
+- Los informes de incremento identifican el estado del código que verifican con el commit actual de `CODE_REPO` (o "sin commits" y el resumen de `git status` si aún no existe ninguno).
+
 ## 5.1 En alcance
 
 ```text
-ticketing/domain
-ticketing/application
-ticketing/infrastructure
-ticketing/bootstrap
-build multi-módulo de ticketing (dentro de ticketing/)
+CODE_REPO/ticketing/domain
+CODE_REPO/ticketing/application
+CODE_REPO/ticketing/infrastructure
+CODE_REPO/ticketing/bootstrap
+build multi-módulo de ticketing (dentro de CODE_REPO/ticketing/, con su Maven Wrapper)
 pruebas unitarias: dominio, casos de uso, adaptadores
 pruebas de la capa web reactiva
 pruebas de integración con contenedores de prueba (DynamoDB Local, SQS emulado)
@@ -273,12 +290,12 @@ Todos los componentes `CMP-*` de `ticketing.architecture.v2.md` §5 cuya capa se
 Corresponden a otros agentes. No los produces, aunque los necesites:
 
 ```text
-payment-mock/**                       (proyecto independiente, ADR-030)
+CODE_REPO/payment-mock/**             (proyecto independiente, ADR-030)
 docker-compose*.yml, infra-init, local-idp, load-token-generator
 Dockerfile e imágenes de contenedor
 Terraform, infra/**
 pipelines de CI/CD
-README.md y colección de solicitudes (DEL-004)
+README.md (de cualquiera de los dos repositorios) y colección de solicitudes (DEL-004)
 pruebas extremo a extremo sobre Docker Compose
 prueba de carga (AC-029, AC-030, AC-031)
 escenarios de resiliencia de ADR-038 sobre Docker Compose
@@ -428,7 +445,7 @@ Los `IV-*` que aparezcan durante la implementación se registran en un archivo n
 
 ## 8.6 Git
 
-No haces commit ni push. Al terminar, el humano revisa y versiona.
+No haces commit ni push en ninguno de los dos repositorios. Al terminar, el humano revisa y versiona: el código en `CODE_REPO` y los informes en `SPEC_REPO`.
 
 ---
 
@@ -482,7 +499,7 @@ En alcance y fuera de alcance, con el agente responsable de cada elemento fuera 
 
 ## 3. Repository layout
 
-Módulos de `ticketing/` y su dirección de dependencias (ADR-034). Sin clases concretas.
+Los dos repositorios (§5.0), los módulos de `CODE_REPO/ticketing/` y su dirección de dependencias (ADR-034). Sin clases concretas.
 
 ## 4. Quality gates
 
@@ -676,25 +693,29 @@ RELEASED
 ## Read
 
 ```text
-feature-spec/ticketing.feature-spec.v5.md
-requirements/Prueba2026.md
-human-review/**
-architecture/**        (solo los vigentes de §1.2 para implementar)
-implementation/**
-ticketing/**
-README.md
-CLAUDE.md
-AGENTS.md
+SPEC_REPO:
+  feature-spec/ticketing.feature-spec.v5.md
+  requirements/Prueba2026.md
+  human-review/**
+  architecture/**        (solo los vigentes de §1.2 para implementar)
+  implementation/**
+  README.md, CLAUDE.md, AGENTS.md
+
+CODE_REPO:
+  todo el repositorio (lectura)
 ```
 
 ## Write
 
 ```text
-ticketing/**                                         (código, pruebas y build de ticketing)
-implementation/ticketing.implementation-plan.v1.md   (solo crear)
-implementation/increments/INC-NNN.report.md          (solo crear)
-human-review/ticketing.implementation-plan-review.yaml   (solo crear)
-human-review/ticketing.implementation-review.<n>.yaml    (solo crear)
+CODE_REPO:
+  ticketing/**                                         (código, pruebas y build de ticketing)
+
+SPEC_REPO:
+  implementation/ticketing.implementation-plan.v1.md   (solo crear)
+  implementation/increments/INC-NNN.report.md          (solo crear)
+  human-review/ticketing.implementation-plan-review.yaml   (solo crear)
+  human-review/ticketing.implementation-review.<n>.yaml    (solo crear)
 ```
 
 ## Forbidden
@@ -702,31 +723,38 @@ human-review/ticketing.implementation-review.<n>.yaml    (solo crear)
 No modificar:
 
 ```text
-requirements/**
-feature-spec/**
-architecture/**
-human-review/ticketing.functional-review.yaml
-human-review/ticketing.architecture-review.yaml
-.claude/**
-payment-mock/**
-infra/**
-docker-compose*.yml
-cualquier Dockerfile
-.github/** y cualquier definición de pipeline
-README.md
+SPEC_REPO:
+  requirements/**
+  feature-spec/**
+  architecture/**
+  human-review/ticketing.functional-review.yaml
+  human-review/ticketing.architecture-review.yaml
+  implementation/ticketing.local-environment.*.md
+  .claude/**
+  README.md
+  cualquier archivo de código, build o pruebas
+
+CODE_REPO:
+  payment-mock/**
+  infra/**
+  docker-compose*.yml
+  cualquier Dockerfile
+  .github/** y cualquier definición de pipeline
+  README.md
+  cualquier archivo en la raíz del repositorio
 ```
 
 ## Inmutabilidad de artefactos
 
 - Los artefactos de planificación, informes y revisiones nunca se sobrescriben. Antes de crear uno, comprueba que la ruta no existe; si existe, detente y repórtalo.
 - Un plan nuevo solo se genera como `ticketing.implementation-plan.v<n+1>.md` cuando una revisión humana lo exige (`CONFIRMED_WITH_CHANGE` o `REJECTED` en `PLAN`, o un `IV-*` que lo modifique), con su propia revisión `ticketing.implementation-plan-review.v<n+1>.yaml`.
-- El código fuente y las pruebas bajo `ticketing/**` sí evolucionan entre incrementos; la inmutabilidad aplica a los artefactos, no al código.
+- El código fuente y las pruebas bajo `CODE_REPO/ticketing/**` sí evolucionan entre incrementos; la inmutabilidad aplica a los artefactos, no al código.
 
 ## Uso de Bash
 
-Permitido para: inspeccionar el entorno, ejecutar el build y las pruebas (incluidas las que levantan contenedores de prueba) y consultar `git status` / `git diff`.
+Permitido para: inspeccionar el entorno, ejecutar el build y las pruebas (incluidas las que levantan contenedores de prueba) y consultar `git status` / `git diff` / `git log` en ambos repositorios.
 
-El build se ejecuta siempre con el Maven Wrapper de `ticketing/` y con `JAVA_HOME` apuntando, en la propia invocación, al JDK 25 que indica `implementation/ticketing.local-environment.v1.md`. No modifiques variables de entorno globales.
+El build se ejecuta siempre con el Maven Wrapper de `CODE_REPO/ticketing/` y con `JAVA_HOME` apuntando, en la propia invocación, al JDK 25 que indica `implementation/ticketing.local-environment.v1.md`. No modifiques variables de entorno globales.
 
 No permitido: `git commit`, `git push`, reescritura del historial, instalación de software global, levantar el entorno de Docker Compose, acceder a servicios externos distintos de los repositorios de dependencias y registros de imágenes que el build necesite.
 
