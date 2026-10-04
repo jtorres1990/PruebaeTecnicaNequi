@@ -1,0 +1,128 @@
+artifact: implementation-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/increments/INC-003.report.md
+  section: "6. Notes for other agents"
+  increment: INC-003
+
+review:
+  status: APPROVED
+  reviewer: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: IV-008
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Se acepta que la \"definición completa de ADR-034\" de los puertos de salida se complete por incrementos: INC-003 define las operaciones que usa el rol api y las del rol worker (lease, progreso, habilitar, FAILED, estancados, purga, lote, verificación, iniciar pago, confirmar, cerrar, aprobación tardía, reversos, consultas de vencidas/pendientes/reversos y Payment gateway) se añaden a los mismos puertos en INC-004?"
+    options:
+      - "(a) Confirmar: las operaciones del worker se añaden en INC-004 junto con sus casos de uso"
+      - "(b) Completar en INC-003 todas las operaciones de ADR-034 aunque aún no tengan casos de uso"
+    recommended: >
+      (a). Evita adelantar código sin uso ni pruebas y mantiene los mismos
+      puertos de ADR-034.
+    decision: CONFIRMED
+    answer: >
+      (a). Las operaciones del rol worker se añaden a los puertos de ADR-034
+      en INC-004, junto con los casos de uso que las usan.
+    impact:
+      - INC-003
+      - INC-004
+      - ADR-034
+
+  - id: IV-009
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "Cuando la compensación \"Fallar (encolado)\" de CMP-005 se cancela por la condición de un Ticket con la Order en CREATED, ¿aplica PurchaseService la cuarentena (AP-031) según ADR-025 y responde con el estado actual de la Order?"
+    options:
+      - "(a) Confirmar: CMP-005 aplica AP-031 (ADR-025) y responde 201 con el estado actual (CREATED, la cuarentena no se expone), por analogía con ADR-026; si la cuarentena no se aplica, doble fallo 503"
+      - "(b) Sin cuarentena en la compra: doble fallo 503 y la Order queda en CREATED hasta que la expiración (ADR-028) la resuelva"
+      - "(c) Devolver al Architect"
+    recommended: >
+      (a). ADR-025 asigna la cuarentena al ejecutor de cualquier transición
+      cancelada por la condición de un Ticket con la Order en CREATED; el
+      ejecutor de "Fallar (encolado)" es CMP-005.
+    decision: CONFIRMED
+    answer: >
+      (a). PurchaseService aplica AP-031 en ese caso y responde 201 con el
+      estado actual de la Order (CREATED); si la cuarentena no se aplica, se
+      trata como doble fallo (503). AP-031 queda asignado también a INC-003.
+    impact:
+      - INC-003
+      - INC-004
+      - CMP-005
+      - AP-031
+      - ADR-025
+      - ADR-026
+
+  - id: IV-010
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "En la carrera de dos solicitudes con la misma Idempotency-Key, ¿se resuelve la perdedora con la lógica de repetición de ADR-027, incluida la republicación de MSG-001 si la Order sigue en CREATED sin enqueuedAt?"
+    options:
+      - "(a) Confirmar: repetición normal con republicación; el consumidor tolera el duplicado de MSG-001"
+      - "(b) La perdedora no republica MSG-001"
+    recommended: >
+      (a). Es la misma lógica de repetición de ADR-027 y el consumidor es
+      idempotente frente a duplicados.
+    decision: CONFIRMED
+    answer: >
+      (a). La solicitud perdedora se trata como una repetición normal,
+      incluida la republicación de MSG-001.
+    impact:
+      - INC-003
+      - ADR-027
+      - MSG-001
+
+  - id: IV-011
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "¿Se aprueban los valores técnicos sin catálogo usados en INC-003: actor de las auditorías ENQUEUE_FAILED y ORDER_QUARANTINED = SYSTEM con identificador ticketing-api, y quarantineReason = TICKET_CONDITION_FAILED_ON_ENQUEUE_FAILURE?"
+    options:
+      - "(a) Confirmar los valores"
+      - "(b) Confirmar con cambios indicados por el humano"
+    recommended: >
+      (a). Encajan con el catálogo de auditoría de ADR-031 y no forman parte
+      de ningún contrato externo.
+    decision: CONFIRMED
+    answer: >
+      (a). Actor SYSTEM / ticketing-api y quarantineReason
+      TICKET_CONDITION_FAILED_ON_ENQUEUE_FAILURE.
+    impact:
+      - INC-003
+      - ADR-031
+
+  - id: IV-012
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "El máximo de 10 Ticket por Order es una constante en el dominio (PurchaseRequest, Order), pero la spec §13.1 y el Anexo A lo declaran configurable. ¿Cuándo se hace configurable?"
+    options:
+      - "(a) En INC-010, al conectar las propiedades, con valor por defecto 10"
+      - "(b) En INC-004"
+      - "(c) Se mantiene fijo en 10 como desviación aceptada"
+    recommended: >
+      (a). INC-010 es el incremento de configuración por entorno (CMP-021,
+      Anexo A).
+    decision: CONFIRMED
+    answer: >
+      (a). Se hace configurable en INC-010, con valor por defecto 10, junto
+      con el enlace de ApiUseCaseSettings.
+    impact:
+      - INC-010
+      - CMP-021
+      - VAL-012
+
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
