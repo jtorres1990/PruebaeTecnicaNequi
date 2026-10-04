@@ -7,9 +7,9 @@ source:
   version: 1
 
 review:
-  status: PENDING
+  status: APPROVED
   reviewer: human
-  reviewed_at: null
+  reviewed_at: 2026-10-04
 
 # Allowed human decisions:
 # CONFIRMED
@@ -46,8 +46,9 @@ decisions:
       infra-init, Docker Compose, Dockerfile, Terraform, CI/CD, README,
       colección, extremo a extremo, resiliencia sobre Compose y carga
       (AC-029 a AC-031); AC-035 lo verifican Payment Mock y QA.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se aprueba el plan de once incrementos, su orden, los 25 spikes y el alcance tal como se proponen.
 
   - id: IV-001
     type: IMPLEMENTATION_VALIDATION
@@ -61,8 +62,9 @@ decisions:
       (a), sujeto a los spikes SPK-002 a SPK-006, SPK-019 y SPK-023. Si un
       spike resulta DIFFERENT sin alternativa definida por el ADR, se abrirá un
       IV bloqueante en una revisión de implementación.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se acepta la opción (a), sujeta a los spikes SPK-002 a SPK-006, SPK-019 y SPK-023. Si un spike resulta DIFFERENT sin alternativa definida por el ADR, se abre un IV bloqueante en una revisión de implementación.
     impact:
       - INC-001
       - INC-005
@@ -83,8 +85,9 @@ decisions:
     recommended: >
       (a). Si SPK-003 muestra que el BOM gestiona JUnit 5.x, la pregunta queda
       sin efecto.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se acepta la opción (a): la versión de JUnit gestionada por el BOM de Spring Boot 4.x cumple TC-014 (misma plataforma Jupiter; el requerimiento dice 'frameworks como JUnit 5'). Si SPK-003 muestra que el BOM gestiona JUnit 5.x, la pregunta queda sin efecto.
     impact:
       - INC-001
       - TC-014
@@ -100,8 +103,9 @@ decisions:
       - "(c) Submódulo de git (exige tocar la raíz de CODE_REPO, prohibido para este agente)"
     recommended: >
       (a). Debe responderse antes de INC-007.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se acepta la opción (a): copia literal versionada en los recursos de prueba de ticketing con su SHA-256 registrado y una prueba que la compara con el original cuando SPEC_REPO está disponible.
     impact:
       - INC-007
       - INC-008
@@ -121,8 +125,9 @@ decisions:
     recommended: >
       (a). Ninguno contradice un valor aprobado; todos serán propiedades
       configurables. Debe responderse antes de INC-003.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se acepta la opción (a): se aprueba la tabla del plan §9.1 tal como está; todos los valores se implementan como propiedades configurables.
     impact:
       - INC-003
       - INC-004
@@ -148,8 +153,9 @@ decisions:
       - "(c) Componente propio no bloqueante (alternativa de ADR-032)"
     recommended: >
       (a), sujeto a SPK-023. Debe responderse antes de INC-008.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se acepta la opción (a): Resilience4j RateLimiter, 10 solicitudes por 10 s por sujeto, rechazo inmediato sin espera, Retry-After igual a los segundos hasta el siguiente permiso; sujeto a SPK-023.
     impact:
       - INC-008
       - CMP-017
@@ -166,8 +172,9 @@ decisions:
       - "(c) Se acepta como contrato el de ADR-033 con nombres de claims configurables; la verificación contra Cognito real queda a QA/Platform (RISK-013)"
     recommended: >
       (a); si no es posible, (c). Debe responderse antes de INC-008.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se acepta la recomendación. En esta revisión no se aporta payload de un token de Cognito, por lo que se aplica la opción (c): contrato de ADR-033 con nombres de claims configurables; la verificación contra Cognito real queda a QA/Platform (RISK-013). Si más adelante se aporta un payload, se usa como evidencia de SPK-022.
     impact:
       - INC-008
       - SPK-022
@@ -186,8 +193,9 @@ decisions:
       - "(c) Solo métricas en el endpoint de gestión, sin exportación de trazas"
     recommended: >
       (a). Debe responderse antes de INC-010.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se acepta la opción (a): Micrometer con endpoint Prometheus en el puerto de gestión, Micrometer Tracing con puente OpenTelemetry y exportación OTLP configurable (desactivada por defecto en local), logs estructurados JSON nativos de Spring Boot.
     impact:
       - INC-010
       - CMP-018
@@ -198,14 +206,6 @@ gate:
     - PLAN
     - IV-001
     - IV-002
-  pending_blocking_items:
-    - PLAN
-    - IV-001
-    - IV-002
-  non_blocking_pending_items:
-    - IV-003
-    - IV-004
-    - IV-005
-    - IV-006
-    - IV-007
-  implementation_can_start: false
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
