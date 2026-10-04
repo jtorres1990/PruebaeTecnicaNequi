@@ -1,0 +1,188 @@
+<div id="ddb-explainer">
+  <style>
+    #ddb-explainer { color: var(--foreground); display: grid; gap: 18px; }
+    #ddb-explainer .controls { display: grid; grid-template-columns: 1fr 180px; gap: 16px; align-items: end; }
+    #ddb-explainer .control-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+    #ddb-explainer .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    #ddb-explainer .diagram-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    #ddb-explainer .panel { display: grid; gap: 10px; min-width: 0; }
+    #ddb-explainer .panel-title { font-weight: 500; }
+    #ddb-explainer .partition-list { display: grid; gap: 7px; }
+    #ddb-explainer .partition-row { display: grid; grid-template-columns: 96px 1fr 58px; gap: 8px; align-items: center; }
+    #ddb-explainer .track { height: 18px; background: color-mix(in srgb, var(--muted) 75%, transparent); overflow: hidden; }
+    #ddb-explainer .bar { height: 100%; background: var(--viz-series-1); transition: width 180ms ease; }
+    #ddb-explainer .sharded .bar { background: var(--viz-series-2); }
+    #ddb-explainer .key-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 8px; align-items: center; }
+    #ddb-explainer .node { padding: 10px; background: color-mix(in srgb, var(--muted) 68%, transparent); min-width: 0; }
+    #ddb-explainer .node strong { display: block; font-weight: 500; }
+    #ddb-explainer .arrow { color: var(--muted-foreground); }
+    #ddb-explainer .transaction { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto minmax(150px, 1fr); gap: 8px; align-items: center; }
+    #ddb-explainer .ticket { padding: 9px; background: color-mix(in srgb, var(--viz-series-3) 15%, transparent); text-align: center; }
+    #ddb-explainer .tx { padding: 10px; background: color-mix(in srgb, var(--viz-series-1) 18%, transparent); text-align: center; font-weight: 500; }
+    #ddb-explainer .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted-foreground); }
+    #ddb-explainer .legend-item { display: inline-flex; gap: 6px; align-items: center; }
+    #ddb-explainer .swatch { width: 10px; height: 10px; display: inline-block; }
+    #ddb-explainer .base-swatch { background: var(--viz-series-3); }
+    #ddb-explainer .gsi-swatch { background: var(--viz-series-2); }
+    #ddb-explainer .small-note { color: var(--muted-foreground); }
+    @media (max-width: 640px) {
+      #ddb-explainer .controls, #ddb-explainer .diagram-grid { grid-template-columns: 1fr; }
+      #ddb-explainer .stats { grid-template-columns: 1fr; }
+      #ddb-explainer .key-flow { grid-template-columns: 1fr; }
+      #ddb-explainer .arrow { transform: rotate(90deg); justify-self: center; }
+      #ddb-explainer .transaction { grid-template-columns: 1fr; }
+    }
+  </style>
+
+  <h2>Particiones y GSI en el Event popular</h2>
+
+  <div class="controls viz-controls">
+    <label class="form-label">
+      <span class="control-head"><span>Compradores concurrentes</span><strong id="ddb-users-value" class="tabular-nums">1.000</strong></span>
+      <input id="ddb-users" class="form-range" type="range" min="100" max="3000" step="100" value="1000">
+    </label>
+    <label class="form-label">
+      <span>Shards de disponibilidad</span>
+      <select id="ddb-shards" class="form-select">
+        <option value="1">1 — sin sharding</option>
+        <option value="8">8</option>
+        <option value="16">16</option>
+        <option value="32">32</option>
+        <option value="64" selected>64</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="stats">
+    <div class="card viz-stat">
+      <span class="text-muted">Clave única por Event</span>
+      <span id="ddb-one-load" class="viz-stat-value tabular-nums">1.000</span>
+      <span class="text-small text-muted">solicitudes concentradas</span>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Con sharding calculado</span>
+      <span id="ddb-shard-load" class="viz-stat-value tabular-nums">≈16</span>
+      <span class="text-small text-muted">solicitudes por shard</span>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Reserva de varios tickets</span>
+      <span class="viz-stat-value">Todo o nada</span>
+      <span class="text-small text-muted">transacción entre particiones</span>
+    </div>
+  </div>
+
+  <div class="diagram-grid">
+    <section class="panel" aria-labelledby="ddb-no-shard-title">
+      <div id="ddb-no-shard-title" class="panel-title">Una partition key compartida</div>
+      <div class="partition-list">
+        <div class="partition-row">
+          <code>EVENT#123</code>
+          <div class="track" aria-label="Carga concentrada"><div id="ddb-single-bar" class="bar" style="width:100%"></div></div>
+          <strong id="ddb-single-count" class="text-end tabular-nums">1.000</strong>
+        </div>
+      </div>
+      <div class="small-note text-small">H1, H2, H3… comparten la misma clave lógica.</div>
+    </section>
+
+    <section class="panel sharded" aria-labelledby="ddb-shard-title">
+      <div id="ddb-shard-title" class="panel-title">Claves distribuidas</div>
+      <div id="ddb-shard-list" class="partition-list" aria-live="polite"></div>
+      <div id="ddb-shard-note" class="small-note text-small"></div>
+    </section>
+  </div>
+
+  <hr>
+
+  <section class="panel" aria-labelledby="ddb-gsi-title">
+    <div id="ddb-gsi-title" class="panel-title">El GSI reorganiza los Ticket para otra consulta</div>
+    <div class="key-flow">
+      <div class="node"><strong>Tabla base</strong><code>PK=TICKET#EV123#H1</code></div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="node"><strong>GSI shardeado</strong><code>GSI2PK=EV123#S07</code></div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="node"><strong>Consulta</strong><code>section + limit + cursor</code></div>
+    </div>
+    <div class="legend text-small">
+      <span class="legend-item"><span class="swatch base-swatch"></span>Tabla base: verdad autoritativa</span>
+      <span class="legend-item"><span class="swatch gsi-swatch"></span>GSI: vista eventual para buscar</span>
+    </div>
+  </section>
+
+  <hr>
+
+  <section class="panel" aria-labelledby="ddb-tx-title">
+    <div id="ddb-tx-title" class="panel-title">Una compra puede tocar particiones diferentes</div>
+    <div class="transaction">
+      <div class="ticket"><code>Ticket H1<br>P03</code></div>
+      <div class="ticket"><code>Ticket H2<br>P18</code></div>
+      <div class="ticket"><code>Ticket H3<br>P41</code></div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="tx">TransactWriteItems<br>todos o ninguno</div>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const root = document.getElementById('ddb-explainer');
+      const usersInput = root.querySelector('#ddb-users');
+      const shardsInput = root.querySelector('#ddb-shards');
+      const usersValue = root.querySelector('#ddb-users-value');
+      const oneLoad = root.querySelector('#ddb-one-load');
+      const shardLoad = root.querySelector('#ddb-shard-load');
+      const singleCount = root.querySelector('#ddb-single-count');
+      const shardList = root.querySelector('#ddb-shard-list');
+      const shardNote = root.querySelector('#ddb-shard-note');
+      const formatter = new Intl.NumberFormat('es-CO');
+
+      const saved = window.openai && window.openai.widgetState && window.openai.widgetState.modelContent;
+      if (saved && Number.isFinite(saved.users)) usersInput.value = String(saved.users);
+      if (saved && [1, 8, 16, 32, 64].includes(saved.shards)) shardsInput.value = String(saved.shards);
+
+      function draw() {
+        const users = Number(usersInput.value);
+        const shards = Number(shardsInput.value);
+        const perShard = Math.ceil(users / shards);
+        const visible = Math.min(shards, 16);
+        usersValue.textContent = formatter.format(users);
+        oneLoad.textContent = formatter.format(users);
+        shardLoad.textContent = `≈${formatter.format(perShard)}`;
+        singleCount.textContent = formatter.format(users);
+        shardList.replaceChildren();
+        for (let i = 0; i < visible; i += 1) {
+          const row = document.createElement('div');
+          row.className = 'partition-row';
+          const key = document.createElement('code');
+          key.textContent = `SHARD#${String(i).padStart(2, '0')}`;
+          const track = document.createElement('div');
+          track.className = 'track';
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.style.width = `${Math.max(5, 100 / Math.sqrt(shards))}%`;
+          track.appendChild(bar);
+          const count = document.createElement('strong');
+          count.className = 'text-end tabular-nums';
+          count.textContent = `≈${formatter.format(perShard)}`;
+          row.append(key, track, count);
+          shardList.appendChild(row);
+        }
+        shardNote.textContent = shards > visible
+          ? `Se muestran ${visible} de ${shards} shards. Cada ticket conoce su shard por hash.`
+          : `Se muestran los ${shards} shards. Cada ticket conoce su shard por hash.`;
+        if (window.openai && window.openai.setWidgetState) {
+          window.openai.setWidgetState({ modelContent: { users, shards }, privateContent: null }).catch(() => {});
+        }
+      }
+
+      usersInput.addEventListener('input', draw);
+      shardsInput.addEventListener('change', draw);
+      window.addEventListener('openai:set_globals', (event) => {
+        const next = event.detail && event.detail.globals && event.detail.globals.widgetState && event.detail.globals.widgetState.modelContent;
+        if (!next) return;
+        if (Number.isFinite(next.users)) usersInput.value = String(next.users);
+        if ([1, 8, 16, 32, 64].includes(next.shards)) shardsInput.value = String(next.shards);
+        draw();
+      });
+      draw();
+    })();
+  </script>
+</div>

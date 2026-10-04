@@ -7,9 +7,9 @@ source:
   version: 1
 
 review:
-  status: PENDING
+  status: APPROVED
   reviewer: human
-  reviewed_at: null
+  reviewed_at: 2026-10-04
 
 # Allowed human decisions:
 # CONFIRMED
@@ -35,8 +35,33 @@ decisions:
     alternatives:
       - Una tabla por entidad (events, tickets, orders, idempotency, audit)
       - Ticket con partition key propia e índice por Event
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se conserva una sola tabla DynamoDB, pero se rechaza que todos los Ticket
+      de un Event compartan `PK = EVENT#<eventId>`. Cada Ticket debe utilizar
+      una partition key de alta cardinalidad y direccionable de forma
+      determinista, por ejemplo `PK = TICKET#<eventId>#<ticketId>` y
+      `SK = #META`. Esto distribuye entre particiones las compras concurrentes
+      de tickets distintos de un mismo Event.
+
+      La disponibilidad por Event debe resolverse mediante un GSI con sharding
+      calculado. El shard se deriva de forma determinista del ticket y el Event
+      conserva la cantidad de shards configurada. Las consultas de
+      disponibilidad deben ser paginadas y, cuando aplique, filtrables por
+      sección; no se retornarán decenas de miles de tickets en una sola
+      respuesta.
+
+      La reserva all-or-nothing se mantiene mediante una única operación
+      transaccional que puede actualizar Ticket ubicados en particiones
+      diferentes, además de crear Order, Reservation, idempotencia y auditoría.
+      Cada Ticket debe validar condicionalmente que pertenece al Event solicitado
+      y que continúa en `AVAILABLE`.
+
+      El diseño debe soportar como mínimo un Event con 50.000 Ticket y una prueba
+      concentrada con más de 1.000 usuarios concurrentes. La creación de Events
+      de gran capacidad debe realizar la escritura de tickets por lotes antes de
+      habilitar el Event. El modelo, ADR-004, ADR-021 y OpenAPI deben propagarse
+      de forma consistente con esta decisión.
     impact:
       - TC-004
       - NFR-006
@@ -49,6 +74,10 @@ decisions:
       - AP-010
       - AP-016
       - CMP-010
+      - ADR-004
+      - ADR-021
+      - FG-002
+      - API-003
 
   - id: ADR-002
     type: ADR
@@ -62,8 +91,30 @@ decisions:
     alternatives:
       - Optimistic locking con atributo de versión y lectura previa
       - Conditional writes independientes por Ticket con compensación
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La reserva de múltiples Ticket debe ejecutarse mediante una única operación
+      `TransactWriteItems` all-or-nothing. La transacción puede actualizar Ticket
+      ubicados en partition keys y particiones físicas diferentes, conforme al
+      modelo aprobado en ADR-001, y debe crear en el mismo commit la Order con su
+      Reservation, el registro de idempotencia y el registro de auditoría.
+
+      Cada actualización de Ticket debe comprobar condicionalmente que el item
+      existe, pertenece al Event solicitado y continúa en estado `AVAILABLE`.
+      Si falla la condición de cualquier Ticket, se cancela la transacción
+      completa: ningún Ticket cambia, no se crean Reservation ni Order y no se
+      retorna Order ID.
+
+      El Event se valida antes de ejecutar la transacción y queda fuera de ella
+      para evitar que todas las compras del mismo Event compitan por un único
+      item. Esto requiere que el Event sea inmutable después de habilitarse y que
+      la validación compruebe que puede venderse.
+
+      Las cancelaciones producidas por conflictos técnicos transaccionales pueden
+      reintentarse de forma acotada con jitter. Una condición fallida por un
+      Ticket inexistente o no disponible es un rechazo funcional completo y no
+      debe reintentarse como conflicto técnico. El máximo de Ticket por Order se
+      resolverá en FG-001 respetando los límites vigentes de la transacción.
     impact:
       - TC-011
       - ST-001
@@ -88,8 +139,21 @@ decisions:
     alternatives:
       - Máximo igual al límite técnico de la transacción
       - Sin máximo, dividiendo la reserva en varias transacciones (descartada por exponer parcialidad)
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se confirma un mínimo de 1 y un máximo de 10 Ticket por Order. El límite
+      debe validarse en el contrato de entrada y nuevamente en el caso de uso.
+      Los identificadores de Ticket repetidos dentro de la misma solicitud no
+      están permitidos.
+
+      Una solicitud con cero Ticket, más de 10 Ticket o identificadores
+      repetidos debe rechazarse completamente con un error de validación, sin
+      crear Reservation, Order ni Order ID y sin modificar el inventario.
+
+      El valor máximo será configurable para facilitar pruebas y evolución, pero
+      cualquier aumento requerirá verificar nuevamente el tamaño de
+      `TransactWriteItems`, la contención, la latencia y el riesgo de acaparamiento
+      de inventario. La configuración desplegada para esta implementación será 10.
     impact:
       - TC-011
       - FR-004
@@ -111,8 +175,50 @@ decisions:
     alternatives:
       - Creación asíncrona con aceptación inmediata y consulta de progreso
       - Limitar la capacidad a lo que cabe en una transacción
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se rechaza la creación síncrona y se adopta la creación asíncrona con SQS
+      y el rol worker. Con el máximo de 50.000 Ticket por Event aprobado en
+      FG-002, la escritura del inventario no debe ejecutarse dentro de la
+      solicitud HTTP.
+
+      La solicitud de creación valida completamente los datos, crea el Event en
+      una fase técnica `PROVISIONING` no habilitada, publica un mensaje de
+      aprovisionamiento y responde de inmediato con el `eventId` y el estado de
+      aprovisionamiento. Una solicitud inválida o que supere la capacidad máxima
+      se rechaza completa sin escribir nada.
+
+      El inventario se describe mediante una definición compacta (secciones,
+      filas y asientos, más las cortesías) y no como una lista de Ticket
+      individuales en el cuerpo. El servidor genera los `ticketId` de forma
+      determinista a partir de esa definición, que se conserva en el Event. El
+      mensaje solo transporta el `eventId`.
+
+      El worker consume el mensaje y escribe los Ticket por lotes con
+      concurrencia acotada. La escritura debe ser idempotente por clave y
+      reanudable ante una reentrega. Para que una reentrega duplicada no
+      sobrescriba Ticket de un Event ya habilitado, el worker debe tomar un
+      lease condicional sobre el Event y comprobar que continúa en
+      `PROVISIONING` antes de cada lote. El Event se habilita mediante una
+      escritura condicional, junto con su registro de auditoría, solo después
+      de comprobar que la cantidad de Ticket creados coincide con
+      `Event.capacity`.
+
+      Mientras el Event no esté habilitado no aparece en el listado, y la
+      consulta de disponibilidad y el inicio de compra lo tratan como
+      inexistente. El `ADMIN` puede consultar el estado de aprovisionamiento
+      del Event (`PROVISIONING`, `ENABLED` o `FAILED`).
+
+      El aprovisionamiento usa una cola propia con DLQ, separada de la cola de
+      Orders, con entrega at-least-once. Agotados los reintentos, el Event se
+      marca `FAILED` y el proceso de limpieza elimina sus Ticket. Un Event que
+      permanezca en `PROVISIONING` sin progreso más allá del umbral debe ser
+      detectado por el mismo proceso y republicado o marcado `FAILED`.
+
+      ADR-004, el modelo de datos, el contrato de mensajería, OpenAPI y la
+      especificación funcional deben propagarse de forma consistente con esta
+      decisión. AV-002 debe responderse teniendo en cuenta que el estado de
+      aprovisionamiento pasa a ser visible para el `ADMIN`.
     impact:
       - FR-001
       - BR-021
@@ -128,6 +234,10 @@ decisions:
       - CMP-003
       - CMP-015
       - API-001
+      - ADR-001
+      - ADR-010
+      - FG-002
+      - AV-002
 
   - id: ADR-005
     type: ADR
@@ -141,8 +251,46 @@ decisions:
     alternatives:
       - Saga con pasos compensables y estados técnicos intermedios
       - Order como fuente única con estado de Ticket derivado
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma que cada transición de negocio se ejecuta como una única
+      operación `TransactWriteItems` que incluye la Order, todos sus Ticket y el
+      registro de auditoría, sin estados de negocio nuevos ni estados técnicos
+      intermedios observables. Se descartan la saga y el estado de Ticket
+      derivado.
+
+      Toda transición terminal exige condicionalmente que la Order esté en
+      `CREATED`. Toda transición de un Ticket posterior a la reserva exige que
+      el Ticket pertenezca a la Order que la ejecuta y se encuentre en el estado
+      de origen esperado. Ninguna condición admite `SOLD` ni `COMPLIMENTARY`
+      como origen. El fallo de una condición no es un error técnico: el ejecutor
+      relee la Order y actúa según su estado actual.
+
+      Las transacciones deben usar las claves de Ticket aprobadas en ADR-001:
+      los Ticket de una Order residen en partition keys diferentes y la
+      transacción los actualiza junto con la Order. Con el máximo de 10 Ticket
+      por Order de ADR-003, ninguna transición supera 13 items.
+
+      La atomicidad se garantiza para la escritura. Una lectura no transaccional
+      de varios items puede observar unos antes y otros después del commit, por
+      lo que la consulta de una Order debe resolverse leyendo únicamente el item
+      Order con lectura fuertemente consistente y no debe componer el estado
+      individual de sus Ticket. La consulta de disponibilidad se mantiene como
+      informativa.
+
+      Si la transacción se cancela por la condición de un Ticket mientras la
+      Order continúa en `CREATED`, se trata como una inconsistencia: se audita,
+      se alerta y no se fuerza ninguna escritura sobre los Ticket. Para evitar
+      que el proceso de expiración la reintente indefinidamente, la Order debe
+      marcarse con un atributo técnico de cuarentena que la retire del índice de
+      expiración y la deje disponible para revisión manual. Este atributo no es
+      un estado de negocio y no se expone.
+
+      Se acepta como trade-off declarado que las escrituras transaccionales
+      consumen el doble de capacidad y que una compra confirmada requiere tres
+      transacciones. Los márgenes temporales de las guardas se resuelven en
+      AV-003 y ADR-008, y el tratamiento de un pago aprobado sin confirmar en
+      FG-003.
     impact:
       - FR-008
       - FR-013
@@ -162,6 +310,15 @@ decisions:
       - AP-015
       - CMP-009
       - CMP-010
+      - ADR-001
+      - ADR-003
+      - ADR-008
+      - ADR-009
+      - AP-010
+      - AP-016
+      - API-005
+      - AV-003
+      - FG-003
 
   - id: ADR-006
     type: ADR
@@ -176,8 +333,47 @@ decisions:
     alternatives:
       - Transactional outbox con relay
       - Encolar antes de persistir (descartada por contradecir la especificación)
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma la publicación directa en SQS después del commit de la
+      reserva, con compensación síncrona ante un fallo definitivo de encolado:
+      el caso de uso de compra lleva la Order a `FAILED`, libera sus Ticket en
+      la misma transacción y responde con el Order ID. Se descartan el outbox
+      con relay como mecanismo principal y el encolado previo a la persistencia.
+      Se añaden dos cambios.
+
+      Presupuesto de tiempo. La ruta de publicación debe tener una duración
+      acotada: como máximo 3 intentos, con un timeout por intento de 500 ms y
+      backoff con jitter, dentro de un presupuesto total de 2 s. Agotado el
+      presupuesto o ante un error no reintentable, el fallo es definitivo y se
+      ejecuta la compensación. Los valores serán configurables y los indicados
+      son los desplegados para esta implementación. Los reintentos solo ocurren
+      en la ruta de fallo y no forman parte del objetivo de latencia de la ruta
+      normal.
+
+      Barrido de republicación. Un proceso periódico del rol worker debe
+      localizar las Orders en `CREATED` que no tienen `enqueuedAt` y cuya
+      creación supera un umbral de 30 s, republicar su mensaje y marcar
+      `enqueuedAt`. El umbral debe ser superior al presupuesto de la ruta
+      síncrona para no competir con ella. El barrido no republica una Order
+      cuyo tiempo restante sea inferior al margen de corte que se apruebe en
+      AV-003; esa Order se cierra por expiración. Los mensajes duplicados que
+      produzca el barrido son tolerados por el consumidor conforme a ADR-007.
+
+      Las Orders pendientes de encolado se localizan mediante un índice
+      disperso. La Order entra en el índice en la transacción de reserva y sale
+      al marcarse `enqueuedAt` o al alcanzar un estado terminal. Como toda
+      Order pasa por este índice, su partition key debe usar sharding calculado,
+      de forma consistente con ADR-001, para no concentrar las escrituras en una
+      única partición. Se acepta como trade-off declarado que esto añade
+      escrituras de índice a la ruta de compra.
+
+      La marca `enqueuedAt` sigue siendo una escritura condicional cuyo fallo no
+      hace fallar la compra; si no llega a aplicarse, el barrido republica y el
+      duplicado se descarta. El barrido cubre la caída del proceso entre el
+      commit y la publicación y el doble fallo de publicación y compensación. La
+      expiración se mantiene como última garantía de que no existe una reserva
+      indefinida.
     impact:
       - FR-005
       - FR-006
@@ -193,6 +389,15 @@ decisions:
       - MSG-001
       - API-004
       - RISK-003
+      - ADR-001
+      - ADR-007
+      - ADR-009
+      - ADR-016
+      - AC-031
+      - AP-008
+      - CMP-014
+      - AV-003
+      - FG-004
 
   - id: ADR-007
     type: ADR
@@ -206,8 +411,42 @@ decisions:
     alternatives:
       - Tabla de mensajes y solicitudes procesadas
       - Cola FIFO con deduplicación del servicio (descartada por la especificación)
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma la idempotencia por identidad explícita de cada operación,
+      persistida junto con su efecto. La solicitud de compra exige la cabecera
+      `Idempotency-Key`, vinculada al `customerId` derivado del JWT y registrada
+      en la misma transacción que la Order, con un hash del contenido y una
+      vigencia mínima de 24 horas. El consumidor usa el `orderId` y el estado de
+      la Order como identidad del mensaje. Una Order admite un único
+      PaymentAttempt activo, protegido por lease y enviado al proveedor como
+      clave de idempotencia. Toda transición exige la Order en `CREATED`. Se
+      descartan la tabla de mensajes procesados y la cola FIFO.
+
+      Una repetición con la misma clave y el mismo contenido retorna la Order ya
+      creada en su estado actual, sin repetir Reservation ni efectos. La misma
+      clave con contenido distinto se rechaza sin efectos. La única acción
+      adicional permitida en una repetición es republicar el mensaje de una
+      Order en `CREATED` sin `enqueuedAt`, conforme a ADR-006. Se añaden dos
+      cambios.
+
+      Carrera con la misma clave. Cuando dos solicitudes simultáneas usan la
+      misma `Idempotency-Key`, solo una transacción se confirma. La solicitud
+      que pierde no debe responder indisponibilidad aunque su transacción se
+      haya cancelado también por el estado de los Ticket: debe releer el
+      registro de idempotencia con lectura fuertemente consistente y responder
+      como repetición, con la misma Order, o con el rechazo por clave
+      reutilizada si el contenido difiere. La existencia del registro de
+      idempotencia tiene prioridad sobre cualquier otra causa de cancelación.
+
+      Creación de Events. La creación de un Event también debe ser idempotente.
+      La solicitud exige `Idempotency-Key`, vinculada a la identidad del
+      `ADMIN` y registrada en la misma escritura transaccional que crea el Event
+      en `PROVISIONING`, con hash del contenido. Una repetición retorna el mismo
+      `eventId` con su estado de aprovisionamiento actual y no crea un segundo
+      Event ni publica un segundo aprovisionamiento. Esto es necesario porque no
+      existe operación para eliminar un Event y un duplicado quedaría listado y
+      vendible.
     impact:
       - FR-017
       - BR-019
@@ -223,6 +462,13 @@ decisions:
       - API-004
       - MSG-001
       - FG-004
+      - ADR-002
+      - ADR-004
+      - ADR-006
+      - AP-001
+      - AP-008
+      - CMP-003
+      - API-001
 
   - id: ADR-008
     type: ADR
@@ -236,8 +482,23 @@ decisions:
     alternatives:
       - Primera transición confirmada sin guarda temporal en la confirmación
       - El proceso de expiración respeta pagos en curso (descartada por superar los diez minutos)
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se confirma que gana la primera transición terminal confirmada,
+      garantizado por la guarda de Order en `CREATED`. `expiresAt` es la
+      autoridad temporal única: la confirmación exige que `expiresAt` sea
+      posterior al instante actual y la expiración exige que sea anterior o
+      igual. El rechazo y el fallo no llevan guarda temporal.
+
+      El consumidor no inicia un pago cuando falta menos del margen de corte
+      para `expiresAt`, y la espera del resultado del pago se limita al tiempo
+      restante de la Reservation. Se descartan la confirmación sin guarda
+      temporal y la expiración que respeta pagos en curso.
+
+      Una aprobación que no puede aplicarse no confirma la Order: los Ticket
+      quedan liberados, la Order conserva su estado terminal y la anomalía se
+      audita y se alerta. El tratamiento del pago se resuelve conforme a FG-003
+      y los valores temporales conforme a AV-003.
     impact:
       - ST-002
       - ST-004
@@ -267,8 +528,34 @@ decisions:
     alternatives:
       - Expiración nativa del almacenamiento (TTL) con reacción al borrado
       - Mensaje diferido por Reservation
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma el proceso periódico en el rol worker que consulta el índice
+      disperso por instante de expiración y ejecuta la transición condicional a
+      `EXPIRED`, liberando conjuntamente todos los Ticket de la Order. La
+      periodicidad y la demora máxima son las aprobadas en AV-003. Todas las
+      instancias del worker ejecutan el proceso sin líder ni lock distribuido;
+      las guardas de Order en `CREATED` y de `expiresAt` vencido garantizan un
+      único efecto y que no se libere una Reservation vigente. Se descartan la
+      expiración por TTL y el mensaje diferido por Reservation. Se añaden dos
+      cambios.
+
+      Aislamiento del ciclo de expiración. El worker ejecuta además el barrido
+      de republicación de ADR-006, los reversos de pago de FG-003 y la limpieza
+      de aprovisionamiento de ADR-004. Cada proceso periódico debe tener su
+      propia planificación y su propio límite de concurrencia, de modo que la
+      duración o el fallo de uno no retrase a los demás. La expiración es el
+      único con un plazo estricto y no debe compartir ciclo con ningún otro.
+
+      Cuarentena. Una Order marcada en cuarentena conforme a ADR-005 debe
+      retirarse del índice de expiración, para que el proceso no la reintente en
+      cada ciclo.
+
+      Se acepta como trade-off declarado que, sin coordinación entre instancias,
+      dos de ellas pueden intentar expirar la misma Order, y que la transacción
+      cancelada por condición consume capacidad de escritura. El recorrido
+      aleatorio de shards con jitter lo reduce y no se justifica un lock
+      distribuido para eliminarlo.
     impact:
       - FR-011
       - VAL-003
@@ -281,6 +568,11 @@ decisions:
       - CMP-014
       - RISK-005
       - AV-003
+      - ADR-004
+      - ADR-005
+      - ADR-006
+      - CMP-015
+      - FG-003
 
   - id: ADR-010
     type: ADR
@@ -294,8 +586,35 @@ decisions:
     alternatives:
       - Consumidor automático de la DLQ que cierra la Order
       - Sin DLQ, reintento hasta el fin de la retención
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma para la cola de Orders la cola Standard con DLQ, long polling
+      de 20 s, visibility timeout de 60 s, tope de procesamiento de 30 s, lease
+      de PaymentAttempt de 45 s y un máximo de 5 recepciones con backoff
+      aplicado mediante la visibilidad del mensaje. En la última recepción, si
+      el procesamiento vuelve a fallar, el consumidor cierra la Order como
+      `FAILED` y libera sus Ticket. La DLQ es zona de retención para
+      diagnóstico, con alarma y redrive manual. Se descartan el consumidor
+      automático de la DLQ y la operación sin DLQ. Se añaden dos cambios.
+
+      Cola de aprovisionamiento. La cola creada en ADR-004 debe tener su propia
+      política: cola Standard con DLQ propia, visibility timeout de 120 s
+      extendido mediante heartbeat mientras el aprovisionamiento progresa,
+      máximo de 5 recepciones y concurrencia baja por instancia para no competir
+      con la capacidad de las compras. Agotadas las recepciones, el Event queda
+      en `FAILED` conforme a ADR-004.
+
+      Capacidad de consumo. Una Order que espera en cola más allá del margen de
+      corte de AV-003 expira sin intento de pago, por lo que la capacidad de
+      consumo debe dimensionarse para que la espera en cola sea muy inferior a
+      la vigencia de la Reservation. La concurrencia por instancia será
+      configurable; se publicará la métrica de antigüedad del mensaje más
+      antiguo de la cola de Orders con alarma a los 2 minutos; el worker
+      escalará automáticamente según los mensajes pendientes; y la prueba de
+      carga debe verificar que ninguna Order expira por espera en cola.
+
+      Los valores indicados serán configurables y son los desplegados para esta
+      implementación.
     impact:
       - TC-005
       - TC-009
@@ -309,6 +628,11 @@ decisions:
       - CMP-012
       - MSG-001
       - RISK-014
+      - ADR-004
+      - ADR-018
+      - ADR-019
+      - AV-003
+      - FG-003
 
   - id: ADR-011
     type: ADR
@@ -322,8 +646,34 @@ decisions:
     alternatives:
       - Servidor de stubs genérico configurado por archivos
       - Resultado seleccionado por un campo de la solicitud de compra
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma el Payment Mock como servicio HTTP propio, idempotente por
+      `paymentAttemptId`, con selección determinista del resultado mediante
+      reglas configuradas en el propio mock a través de una API de control, con
+      los comportamientos de aprobación, rechazo, error definitivo, errores
+      transitorios seguidos de un resultado final y latencia añadida, estado en
+      memoria y contenedor propio en Docker Compose. Se descartan el servidor
+      de stubs genérico y la selección por un campo de la solicitud de compra.
+      Se añaden cuatro cambios.
+
+      Proyecto independiente. Conforme a ADR-015, el mock es un proyecto
+      independiente dentro del mismo repositorio, con su propio build,
+      Dockerfile y pruebas, y su contrato HTTP se documenta en un OpenAPI
+      propio. No es un módulo del build de `ticketing`.
+
+      Cancelación obligatoria. Conforme a FG-003, el mock expone la operación
+      de cancelación de un PaymentAttempt. Es idempotente por `paymentAttemptId`
+      y responde correctamente cualquiera que sea el estado del intento:
+      aprobado, rechazado, inexistente o aún en tránsito.
+
+      Cancelación anticipada. Si la cancelación llega antes que el cobro, el
+      mock la registra y rechaza cualquier cobro posterior con el mismo
+      `paymentAttemptId`.
+
+      Inspección de cancelaciones. La API de control permite consultar también
+      las cancelaciones recibidas por intento, para verificar en pruebas que un
+      pago aprobado sin compra se reversa exactamente una vez.
     impact:
       - TC-017
       - FR-015
@@ -334,6 +684,8 @@ decisions:
       - CMP-019
       - AV-004
       - FG-003
+      - ADR-015
+      - ADR-017
 
   - id: ADR-012
     type: ADR
@@ -346,8 +698,32 @@ decisions:
     alternatives:
       - Captura de cambios del almacén hacia un destino de auditoría
       - Registro de aplicación mediante logs estructurados
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma un registro de auditoría de solo inserción por transición de
+      negocio, escrito en la misma escritura transaccional que la transición y
+      guardado en la colección de la Order, o del Event para su creación. El
+      registro contiene las transiciones aplicadas, los estados de origen y
+      destino de la Order y de sus Ticket, la causa funcional, el actor, la
+      correlación y el instante en UTC, sin tokens ni datos personales más allá
+      del identificador de sujeto. No se expone una operación de API de
+      consulta. Se descartan la captura de cambios como mecanismo primario y los
+      logs estructurados como evidencia. Se añaden dos cambios.
+
+      Catálogo de causas. Además de las causas originales, se auditan: la
+      solicitud de reverso de un pago y su confirmación o agotamiento (FG-003),
+      la aprobación tardía que no pudo aplicarse (ADR-008), la puesta en
+      cuarentena de una Order (ADR-005) y el aprovisionamiento fallido de un
+      Event (ADR-004). La republicación del barrido de ADR-006 no es una
+      transición de negocio y queda en logs y métricas.
+
+      Inmutabilidad. Dentro de la tabla, la inmutabilidad es una convención de
+      la aplicación respaldada por PITR. Como los registros comparten partition
+      key con su Order, los permisos IAM no pueden impedir su modificación sin
+      impedir también la actualización de la Order. La garantía fuerte de
+      inmutabilidad en AWS se declara como mejora de producción mediante la
+      captura de cambios hacia almacenamiento con bloqueo de objetos y
+      retención.
     impact:
       - FR-014
       - BR-010
@@ -370,8 +746,50 @@ decisions:
     alternatives:
       - Validación delegada exclusivamente al borde
       - Autorización por propiedad impuesta por la clave de persistencia
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma la validación del JWT en la aplicación como Resource Server
+      (firma, emisor, expiración, tipo de token de acceso y cliente permitido),
+      el mapeo de `cognito:groups` a las autoridades `ADMIN` y `CUSTOMER`, la
+      autorización por rol en el punto de entrada y por propiedad en el caso de
+      uso, el propietario tomado siempre del sujeto del JWT, y la respuesta
+      idéntica para una Order ajena y una inexistente. Se confirman el manejo de
+      secretos fuera del repositorio, sin claves estáticas en AWS y sin registrar
+      tokens ni API keys, y las defensas contra abuso por idempotencia, límites
+      de entrada y limitación por tasa. Se descartan la validación delegada
+      exclusivamente al borde y la propiedad impuesta por la clave de
+      persistencia. Se añaden cuatro cambios.
+
+      Operaciones nuevas. La consulta del estado de aprovisionamiento de un
+      Event introducida en ADR-004 requiere la autoridad `ADMIN`. La
+      `Idempotency-Key` de la creación de Events introducida en ADR-007 se
+      vincula al sujeto del `ADMIN` autenticado. La tabla de autorización por
+      operación y OpenAPI deben incluirlas.
+
+      Tamaño de cuerpo. Con la definición compacta del inventario aprobada en
+      ADR-004, ninguna operación necesita cuerpos de varios MB. El límite de
+      cuerpo en memoria del servidor se mantiene bajo y explícito, y una
+      solicitud que lo supere se rechaza sin procesarse.
+
+      Endpoints de gestión. Solo el endpoint de salud puede ser accesible desde
+      el exterior. Las métricas y el resto de endpoints de gestión se exponen en
+      un puerto interno, no publicado por el balanceador, y no deben revelar
+      configuración ni secretos.
+
+      Una Order activa por cliente y por Event. Un `CUSTOMER` no puede tener más
+      de una Order en `CREATED` para el mismo Event. La transacción de reserva
+      crea un item de bloqueo identificado por cliente y Event con la condición
+      de que no exista, y toda transición terminal lo elimina en la misma
+      escritura transaccional, conforme a ADR-005. Una segunda solicitud de
+      compra para el mismo Event mientras la primera está activa se rechaza
+      síncronamente, sin crear Reservation, Order ni Order ID y sin modificar el
+      inventario. Una repetición con la misma `Idempotency-Key` sigue
+      resolviéndose como repetición conforme a ADR-007 y no como segunda compra.
+      Se acepta como limitación declarada que esta regla no impide el
+      acaparamiento mediante varias cuentas, que queda a cargo del control de
+      bots en el borde, y que una Order en cuarentena mantiene el bloqueo hasta
+      su revisión manual. Esta regla funcional debe propagarse a la
+      especificación funcional.
     impact:
       - FR-018
       - FR-019
@@ -392,6 +810,13 @@ decisions:
       - API-003
       - API-004
       - API-005
+      - ADR-004
+      - ADR-005
+      - ADR-007
+      - ADR-018
+      - AV-005
+      - AP-008
+      - RISK-010
 
   - id: ADR-014
     type: ADR
@@ -406,8 +831,29 @@ decisions:
       - Cognito emulado por el emulador local de AWS
       - User pool real de Cognito en una cuenta de desarrollo
       - Servidor de identidad completo con mapeo de claims
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma como proveedor local por defecto un emisor OIDC simulado en
+      contenedor que emite tokens con los claims de Cognito que valida el
+      backend, con el servidor de identidad completo como alternativa
+      documentada y el user pool real de Cognito disponible por configuración.
+      El backend depende solo de la URL del emisor, la URL de claves y los
+      nombres de claims. El emisor local solo existe en el perfil local y las
+      pruebas automatizadas de la capa web usan tokens simulados sin depender
+      del contenedor. Se añaden dos cambios.
+
+      Identidades para la prueba de carga. Por la regla de una Order activa por
+      cliente y por Event y la limitación por tasa por sujeto de ADR-013, la
+      prueba de carga requiere más de 1.000 identidades `CUSTOMER` distintas.
+      El emisor local debe permitir emitir tokens para sujetos arbitrarios o
+      generar de antemano un lote de identidades, y la vigencia de los tokens
+      debe cubrir la duración de la prueba.
+
+      Identidades deterministas adicionales. Además del `ADMIN` y los dos
+      `CUSTOMER`, el emisor local define una identidad con los grupos `ADMIN` y
+      `CUSTOMER`, que puede comprar conforme a AV-005, y una identidad sin
+      grupos reconocidos, que debe recibir prohibido en todas las operaciones
+      protegidas.
     impact:
       - TC-016
       - TC-012
@@ -415,6 +861,9 @@ decisions:
       - CMP-020
       - CMP-002
       - RISK-013
+      - ADR-013
+      - ADR-019
+      - AV-005
 
   - id: ADR-015
     type: ADR
@@ -428,8 +877,47 @@ decisions:
     alternatives:
       - Módulo único con paquetes por capa y reglas verificadas por pruebas
       - Módulos por funcionalidad, cada uno con sus capas
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma para la aplicación `ticketing` el build multi-módulo
+      (`domain`, `application`, `infrastructure`, `bootstrap`) con la dirección
+      de dependencias impuesta por el compilador, `domain` y `application` sin
+      tipos de Spring, del SDK de AWS ni de HTTP, puertos de entrada por caso de
+      uso, puertos de salida con intención de negocio y una única imagen con los
+      roles `api` y `worker`. Se descartan el módulo único con paquetes por capa
+      y los módulos por funcionalidad. Se añaden tres cambios.
+
+      Payment Mock como proyecto independiente. `payment-mock` no forma parte
+      del build de `ticketing`. Es un proyecto independiente dentro del mismo
+      repositorio, en su propia carpeta, con su propio build, Dockerfile y
+      pruebas, sin código compartido con `ticketing` en ninguna dirección. No
+      existe una librería común de DTOs: el adaptador de pago de
+      `infrastructure` define sus propios tipos y solo se acopla al contrato
+      HTTP del mock, que se documenta en un OpenAPI propio. La aplicación accede
+      al mock exclusivamente a través del puerto `Payment gateway` y su
+      adaptador HTTP. La cobertura mínima del 90 % se mide solo sobre
+      `ticketing`; el mock mantiene sus propias pruebas fuera de esa métrica.
+      Docker Compose construye ambos proyectos por separado y la aplicación
+      alcanza el mock por nombre de servicio. ADR-011 debe ajustarse de
+      "módulo" a "proyecto independiente".
+
+      Puertos actualizados. El catálogo de puertos debe incorporar lo aprobado
+      en esta revisión: procesar el aprovisionamiento de un Event y consultar
+      su estado, y publicar en la cola de aprovisionamiento (ADR-004); el
+      barrido de republicación (ADR-006); el proceso de reversos de pago y la
+      operación de cancelación obligatoria en el `Payment gateway` (FG-003); la
+      operación de cuarentena y el bloqueo de Order activa por cliente y Event
+      como parte de las transiciones del `Order lifecycle store` (ADR-005,
+      ADR-013); y la idempotencia de la creación de Events (ADR-007). El rol
+      `worker` ejecuta cada proceso periódico con planificación independiente
+      conforme a ADR-009.
+
+      Ubicación de las reglas nuevas. La regla de una Order activa por cliente y
+      Event, el criterio de cuarentena, la política de reverso de pagos y el
+      ciclo de vida del aprovisionamiento (`PROVISIONING`, `ENABLED`, `FAILED`)
+      son reglas de negocio y residen en `domain`. El adaptador de DynamoDB solo
+      las expresa como condiciones y transacciones, conforme a la regla de
+      frontera que separa la decisión de negocio de su atomicidad.
     impact:
       - TC-007
       - TC-013
@@ -438,6 +926,19 @@ decisions:
       - DEL-001
       - CMP-009
       - CMP-021
+      - CMP-013
+      - CMP-019
+      - ADR-004
+      - ADR-005
+      - ADR-006
+      - ADR-007
+      - ADR-009
+      - ADR-011
+      - ADR-013
+      - ADR-017
+      - ADR-019
+      - FG-003
+      - AV-006
 
   - id: ADR-016
     type: ADR
@@ -450,8 +951,67 @@ decisions:
     alternatives:
       - Cuerpo de error propio y retry genérico en los casos de uso
       - Excepciones con anotaciones de estado HTTP en el dominio
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma el modelo de error con Problem Details, un `code` estable y
+      `traceId`, sin trazas ni detalles técnicos; errores de dominio como
+      jerarquía cerrada traducida a HTTP en un único punto con mapeo
+      exhaustivo; y retry selectivo localizado en los adaptadores de salida,
+      sin apilar reintentos donde reintenta el SDK y sin reintentar nunca un
+      fallo de condición, una validación ni un rechazo de pago. Se descartan el
+      cuerpo de error propio con retry genérico y las anotaciones HTTP en el
+      dominio. Se añaden los siguientes cambios.
+
+      Alineación con decisiones aprobadas. La publicación en SQS usa el
+      presupuesto de ADR-006: 3 intentos, 500 ms por intento y 2 s en total. Se
+      añade `ACTIVE_ORDER_EXISTS` con 409 para una segunda compra con una Order
+      activa en el mismo Event conforme a ADR-013. `EVENT_NOT_ON_SALE` deja de
+      ser condicional conforme a FG-005. La creación de un Event responde 202
+      con la ubicación de su estado de aprovisionamiento conforme a ADR-004, y
+      su repetición con la misma `Idempotency-Key` responde 200 con cabecera de
+      repetición y el estado actual conforme a ADR-007;
+      `IDEMPOTENCY_KEY_REUSED` aplica también a esta operación. Un cursor de
+      paginación inválido produce `VALIDATION_ERROR` conforme a ADR-021. Los
+      presupuestos de la llamada de pago se mantienen.
+
+      Circuit breaker. Se incorpora un circuit breaker para el Payment Mock y
+      otro para la publicación en SQS. DynamoDB no tiene circuit breaker: es la
+      fuente de verdad y se protege con el retry del SDK y backpressure. La
+      composición, de adentro hacia afuera, es timeout, circuit breaker y retry:
+      cada intento cuenta para la estadística del circuito y el retry no
+      reintenta cuando el circuito está abierto. Solo cuentan como fallo los
+      errores transitorios (timeout, conexión y 5xx); un rechazo de pago o un
+      error de contrato no abren el circuito.
+
+      Con el circuito del Payment Mock abierto, el consumidor de Orders y el
+      proceso de reversos dejan de recibir mensajes, de modo que no consumen
+      recepciones de `maxReceiveCount`. En semiabierto se procesan unos pocos
+      mensajes de prueba y, si tienen éxito, se reanuda el consumo. La
+      expiración continúa en su ciclo independiente conforme a ADR-009 y
+      ADR-008.
+
+      Con el circuito de publicación en SQS abierto, la API rechaza la compra
+      síncronamente con `SERVICE_UNAVAILABLE` (503) y `Retry-After`, antes de
+      reservar, sin crear Reservation, Order ni Order ID y sin modificar el
+      inventario. Con el circuito cerrado o semiabierto se mantiene la ruta de
+      Order `FAILED` por fallo definitivo de encolado conforme a ADR-006.
+
+      Valores iniciales configurables. Payment Mock: ventana de las últimas 20
+      llamadas con un mínimo de 10, apertura con 50 % de fallos o de llamadas
+      de más de 2 s, 15 s abierto y 3 llamadas de prueba. Publicación en SQS:
+      ventana de las últimas 20 llamadas con un mínimo de 10, apertura con 50 %
+      de fallos, 10 s abierto y 2 llamadas de prueba.
+
+      Implementación. El retry usa operadores nativos de Reactor con backoff y
+      jitter. El circuit breaker usa Resilience4j con su módulo de Reactor,
+      sujeto a verificar compatibilidad con Spring Boot 4.x y Java 25; si no es
+      compatible, se implementa un circuito mínimo propio en el adaptador. Ambos
+      residen en los adaptadores de `infrastructure`; el caso de uso solo
+      recibe un resultado tipado de dependencia no disponible, conforme a
+      ADR-015. El estado del circuito es por instancia. Se publica una métrica
+      del estado de cada circuito con alarma al abrirse. Las transiciones se
+      prueban con tiempo virtual y se demuestran con los fallos transitorios
+      del Payment Mock conforme a ADR-011.
     impact:
       - TC-008
       - TC-009
@@ -464,6 +1024,21 @@ decisions:
       - API-001
       - API-004
       - API-005
+      - ADR-004
+      - ADR-006
+      - ADR-007
+      - ADR-008
+      - ADR-009
+      - ADR-010
+      - ADR-011
+      - ADR-013
+      - ADR-015
+      - ADR-018
+      - ADR-021
+      - CMP-007
+      - CMP-011
+      - CMP-013
+      - FG-005
 
   - id: ADR-017
     type: ADR
@@ -476,8 +1051,41 @@ decisions:
       `ticketing-worker`).
     alternatives:
       - Un único contenedor de aplicación con todos los roles que crea sus recursos al arrancar
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma la topología local con la misma forma que el objetivo en AWS:
+      `ticketing-api` y `ticketing-worker` como dos contenedores de la misma
+      imagen, recursos creados por una tarea `infra-init` de un solo uso e
+      idempotente, comprobaciones de salud con dependencias explícitas,
+      configuración por variables de entorno con un archivo de ejemplo
+      versionado, imágenes multi-etapa con usuario sin privilegios y perfil
+      opcional de prueba de carga. Se descarta el contenedor único que crea sus
+      propios recursos. Se añaden cuatro cambios.
+
+      Recursos de `infra-init`. Además de la tabla y la cola de Orders con su
+      DLQ, `infra-init` crea el GSI de Ticket disponibles con sharding (ADR-001,
+      ADR-021), el índice de Orders pendientes de encolado (ADR-006), el índice
+      de reversos de pago (FG-003) y la cola de aprovisionamiento con su DLQ y
+      política de redrive (ADR-004, ADR-010).
+
+      Payment Mock. `payment-mock` se construye desde su propia carpeta y build,
+      independiente del build de `ticketing`, conforme a ADR-015.
+
+      Identidades para la prueba de carga. `local-idp` emite tokens para
+      sujetos arbitrarios conforme a ADR-014, y el perfil de prueba de carga
+      incluye un paso previo que genera más de 1.000 tokens `CUSTOMER`
+      distintos.
+
+      LocalStack. Desde el 23 de marzo de 2026 la imagen
+      `localstack/localstack:latest` exige `LOCALSTACK_AUTH_TOKEN` para
+      arrancar. Para que el entorno se levante sin cuentas externas, LocalStack
+      se fija a un tag publicado antes de esa exigencia, que se verificará como
+      primera tarea del desarrollo, incluyendo el soporte de redrive a DLQ, el
+      contador aproximado de recepciones y el cambio de visibilidad. El README
+      documenta como alternativa el uso de la versión actual con un token
+      gratuito suministrado por un archivo no versionado, nunca incluido en el
+      repositorio conforme a ADR-013. Si el tag fijado no cumple, el respaldo es
+      ElasticMQ, previa revisión de HV-010 en la especificación funcional.
     impact:
       - TC-006
       - TC-012
@@ -485,6 +1093,15 @@ decisions:
       - CMP-019
       - CMP-020
       - CMP-021
+      - ADR-001
+      - ADR-004
+      - ADR-006
+      - ADR-010
+      - ADR-013
+      - ADR-014
+      - ADR-015
+      - ADR-021
+      - FG-003
 
   - id: ADR-018
     type: ADR
@@ -498,14 +1115,60 @@ decisions:
     alternatives:
       - Funciones sin servidor con gateway de API e integración nativa de la cola
       - Kubernetes gestionado
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma la topología objetivo con ECS sobre Fargate y dos servicios,
+      `api` y `worker`, de la misma imagen; balanceador público con TLS y
+      firewall de aplicación con reglas por tasa; tareas en subredes privadas
+      con endpoints privados; un rol de tarea de mínimo privilegio por servicio;
+      gestor de secretos; DynamoDB on-demand con cifrado y PITR; SQS Standard
+      con cifrado y DLQ; Cognito como emisor; autoescalado independiente;
+      observabilidad con logs, métricas, trazas y alarmas; y una cuenta de AWS
+      por entorno. El Payment Mock solo se despliega en entornos no
+      productivos. Se descartan las funciones sin servidor y Kubernetes
+      gestionado. Se añaden cinco cambios.
+
+      Escalado del worker. Además de los mensajes pendientes por tarea, el
+      worker escala según la antigüedad del mensaje más antiguo de la cola de
+      Orders conforme a ADR-010, que es la señal que protege la vigencia de la
+      Reservation.
+
+      Apagado ordenado. Ante la señal de parada de la tarea, el `api` deja de
+      aceptar solicitudes y completa las que están en curso, incluida la
+      publicación en SQS, lo que reduce la ventana de ADR-006 durante
+      despliegues y reducciones de escala. El `worker` deja de recibir mensajes
+      y completa los que tiene en vuelo dentro del tiempo de parada de la
+      tarea.
+
+      Control de bots. El firewall de aplicación incorpora control de bots como
+      mitigación del acaparamiento mediante varias cuentas que ADR-013 deja al
+      borde, aceptando su costo como trade-off declarado.
+
+      Catálogo de alarmas. Se definen alarmas sobre la profundidad de las DLQ de
+      Orders y de aprovisionamiento, la antigüedad del mensaje más antiguo, el
+      retraso de expiración, la apertura de cada circuit breaker, los reversos
+      de pago pendientes o agotados, las Orders en cuarentena y los
+      aprovisionamientos fallidos.
+
+      Mejoras de producción declaradas. La captura de cambios de DynamoDB hacia
+      almacenamiento con bloqueo de objetos para la auditoría (ADR-012) y el
+      precalentamiento de la capacidad de la tabla y sus índices antes de una
+      venta masiva mediante warm throughput, cuya configuración vigente debe
+      verificarse.
     impact:
       - EVAL-005
       - EVAL-011
       - EVAL-012
       - EVAL-013
       - NFR-007
+      - ADR-005
+      - ADR-006
+      - ADR-009
+      - ADR-010
+      - ADR-012
+      - ADR-013
+      - ADR-016
+      - FG-003
 
   - id: ADR-019
     type: ADR
@@ -519,8 +1182,55 @@ decisions:
     alternatives:
       - Cobertura alcanzada principalmente con pruebas de integración sobre emuladores
       - Concurrencia probada solo en la prueba de carga
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma la pirámide de pruebas con la puerta de cobertura del 90 %
+      medida con pruebas que no requieren contenedores, la concurrencia
+      verificada por invariante con solicitudes simultáneas, reloj inyectado y
+      tiempo virtual, las pruebas de integración contra los emuladores, los
+      flujos extremo a extremo con la colección de solicitudes y la prueba de
+      carga con herramienta externa y verificación de invariantes al terminar.
+      Se descartan la cobertura alcanzada principalmente con pruebas de
+      integración y la concurrencia probada solo con la carga. Se añaden cinco
+      cambios.
+
+      Datos de carga. La prueba de carga incluye al menos un Event de 50.000
+      Ticket y un escenario concentrado sobre ese Event con más de 1.000
+      usuarios concurrentes conforme a ADR-001, usando más de 1.000 identidades
+      `CUSTOMER` distintas conforme a ADR-014.
+
+      Invariantes posteriores a la carga. Además de los originales, se verifica
+      que cada bloqueo de Order activa corresponde a una Order en `CREATED` y
+      que toda Order en `CREATED` tiene su bloqueo (ADR-013); que el índice de
+      Orders pendientes de encolado queda vacío (ADR-006); que ninguna Order
+      expiró por espera en cola (ADR-010); que no hay reversos de pago agotados
+      (FG-003); y que la cantidad disponible informada coincide con los Ticket
+      en `AVAILABLE` (ADR-021).
+
+      Pruebas deterministas de los mecanismos aprobados. Se prueban la carrera
+      de dos solicitudes con la misma `Idempotency-Key` que deben producir la
+      misma Order (ADR-007); la reentrega del aprovisionamiento que no debe
+      sobrescribir Ticket después de habilitar el Event (ADR-004); la
+      cancelación anticipada que debe hacer rechazar el cobro posterior
+      (FG-003); el barrido de republicación que no debe competir con la ruta
+      síncrona (ADR-006); la imposibilidad de dos Orders activas del mismo
+      cliente en el mismo Event (ADR-013); y las transiciones del circuit
+      breaker con tiempo virtual (ADR-016).
+
+      Escenarios de resiliencia extremo a extremo. Se documentan en el README y
+      se demuestran sobre Docker Compose: detener el worker a mitad de un pago y
+      verificar la reanudación por lease; detener el Payment Mock y verificar la
+      apertura del circuito, la pausa del consumo y la recuperación; y detener
+      la cola y verificar que la compra responde 503 sin modificar el
+      inventario.
+
+      Cobertura del Payment Mock. Conforme a ADR-015, `payment-mock` queda
+      fuera de la métrica del 90 % y mantiene sus propias pruebas sin puerta de
+      cobertura.
+
+      Se mantiene como riesgo declarado que DynamoDB Local puede no sostener la
+      carga objetivo; en ese caso la prueba se repite en un entorno de AWS y el
+      resultado se informa junto con su entorno.
     impact:
       - NFR-013
       - TC-014
@@ -530,6 +1240,17 @@ decisions:
       - AC-030
       - AC-031
       - AV-006
+      - ADR-001
+      - ADR-004
+      - ADR-006
+      - ADR-007
+      - ADR-010
+      - ADR-013
+      - ADR-014
+      - ADR-015
+      - ADR-016
+      - ADR-021
+      - FG-003
 
   - id: ADR-020
     type: ADR
@@ -543,8 +1264,33 @@ decisions:
     alternatives:
       - Integración de alto nivel de Spring para AWS con listeners declarativos
       - Cliente de mapeo de objetos para DynamoDB
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirman los clientes asíncronos del SDK oficial de AWS adaptados a
+      tipos reactivos solo dentro de los adaptadores, el cliente de bajo nivel
+      de DynamoDB con mapeo explícito en el adaptador y un consumidor reactivo
+      propio de SQS. Se descartan la integración de alto nivel de Spring para
+      AWS y el cliente de mapeo de objetos. Se añaden cinco precisiones.
+
+      Dos consumidores. Las colas de Orders y de aprovisionamiento tienen cada
+      una su propio bucle reactivo, con concurrencia y apagado ordenado propios,
+      conforme a ADR-004, ADR-010 y ADR-018.
+
+      Pausa y reanudación. El bucle del consumidor de Orders y el proceso de
+      reversos admiten pausa y reanudación gobernadas por el estado del circuit
+      breaker del Payment Mock, conforme a ADR-016.
+
+      Heartbeat de visibilidad. El consumidor de aprovisionamiento extiende la
+      visibilidad del mensaje mientras el trabajo progresa, conforme a ADR-010.
+
+      Motivos de cancelación. Las escrituras transaccionales solicitan el item
+      que no cumplió la condición, para distinguir un Ticket inexistente de uno
+      no disponible y dar prioridad al registro de idempotencia en la carrera
+      con la misma clave, conforme a ADR-007 y ADR-016.
+
+      Operaciones adicionales. El adaptador implementa la escritura por lotes
+      con reintento de items no procesados (ADR-004) y el conteo en paralelo por
+      shards del índice de disponibles (ADR-021).
     impact:
       - TC-003
       - TC-004
@@ -555,6 +1301,12 @@ decisions:
       - CMP-011
       - CMP-012
       - RISK-012
+      - ADR-004
+      - ADR-007
+      - ADR-010
+      - ADR-016
+      - ADR-018
+      - ADR-021
 
   - id: ADR-021
     type: ADR
@@ -569,8 +1321,37 @@ decisions:
       - Contador de disponibles en el item Event actualizado en cada transacción
       - Contador mantenido fuera de la transacción o por captura de cambios
       - Instantánea en caché de corta vida
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Se confirma que la disponibilidad se deriva siempre de los Ticket, sin
+      contadores persistidos. Se descartan el contador en el item Event, el
+      contador mantenido fuera de la transacción o por captura de cambios y la
+      instantánea en caché como modelo base. Se rechaza la lectura completa de
+      la colección del Event en una sola respuesta, incompatible con ADR-001 y
+      con la capacidad de 50.000 Ticket aprobada en FG-002.
+
+      La fuente de lectura es el GSI disperso de Ticket en `AVAILABLE`, con
+      sharding calculado conforme a ADR-001. La cantidad de shards de cada Event
+      se deriva de su capacidad y se conserva en el Event.
+
+      La consulta de disponibilidad de un Event retorna la cantidad de Ticket
+      disponibles y una página de Ticket disponibles. La página es paginada por
+      cursor, filtrable por sección y con tamaño máximo acotado, y solo contiene
+      Ticket en `AVAILABLE`. La respuesta deja de listar los Ticket en otros
+      estados.
+
+      La cantidad disponible se calcula mediante un conteo en paralelo sobre
+      los shards del índice, cacheado durante 1 s por instancia y compartido
+      entre solicitudes simultáneas del mismo Event. La respuesta incluye
+      `generatedAt` y se declara informativa conforme a BR-018; la compra
+      revalida en la transacción conforme a ADR-002.
+
+      El listado marca los Events agotados mediante un sondeo con límite 1
+      sobre los shards del índice, que se detiene en el primer resultado,
+      conforme a AV-001. La consulta de un Event pasado sigue respondiendo
+      conforme a FG-005, y un Event no habilitado se trata como inexistente
+      para el `CUSTOMER` conforme a ADR-004. OpenAPI y el modelo de datos deben
+      propagarse de forma consistente con esta decisión.
     impact:
       - FR-002
       - FR-003
@@ -584,6 +1365,11 @@ decisions:
       - API-002
       - API-003
       - RISK-009
+      - ADR-001
+      - ADR-004
+      - AV-001
+      - FG-002
+      - FG-005
 
   # ---------------------------------------------------------------------------
   # Architecture validations
@@ -599,8 +1385,11 @@ decisions:
       disponible en la consulta de disponibilidad del Event. Si se exige la
       cantidad en el listado, el coste por Event pasa a ser proporcional a sus
       Ticket disponibles.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Sí. El listado informa un indicador `soldOut` por Event y no la cantidad
+      exacta de Ticket disponibles. La cantidad está disponible en la consulta
+      de disponibilidad del Event conforme a ADR-021.
     impact:
       - AC-002
       - FR-002
@@ -617,8 +1406,14 @@ decisions:
       Sí. HV-020 dejó a arquitectura la evaluación de un estado de habilitación.
       El atributo `enabled` es técnico, no se expone y solo cambia una vez, al
       terminar de escribir el inventario.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      "Event habilitado" significa que su creación se completó: el Event está en
+      `ENABLED`. Conforme a ADR-004 y AV-005, el ciclo de aprovisionamiento
+      (`PROVISIONING`, `ENABLED`, `FAILED`) deja de ser un atributo no expuesto
+      y es visible para el `ADMIN`. Para el `CUSTOMER`, un Event que no está en
+      `ENABLED` no existe. No existe operación manual para habilitar ni
+      deshabilitar un Event, y el Event es inmutable una vez habilitado.
     impact:
       - FR-001
       - FR-002
@@ -637,8 +1432,15 @@ decisions:
       diez minutos; los Ticket pueden permanecer retenidos unos segundos más
       hasta que actúa el proceso periódico; una Order encolada con mucho retraso
       expira sin intento de pago.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Se aceptan las tres. (a) El proceso de expiración se ejecuta cada 5 s y
+      los Ticket deben liberarse como máximo 15 s después de `expiresAt`. (b) La
+      guarda temporal es estricta: ninguna compra se confirma después de
+      `expiresAt`, aunque sus Ticket todavía no hayan sido liberados. (c) No se
+      inicia un pago cuando faltan menos de 15 s para `expiresAt`; esa Order se
+      cierra por expiración. Los tres valores serán configurables y los
+      indicados son los desplegados para esta implementación.
     impact:
       - BR-002
       - VAL-001
@@ -660,8 +1462,12 @@ decisions:
       Sí. Mantiene intacto el contrato funcional de la compra. La alternativa,
       un token de medio de pago de prueba en la solicitud, añadiría una entrada
       que la especificación no contempla.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Sí. El resultado del Payment Mock se selecciona mediante reglas
+      configuradas en el propio mock y la solicitud de compra no incorpora
+      ningún campo adicional. La colección de solicitudes incluirá la
+      configuración del mock previa a cada escenario de rechazo o fallo.
     impact:
       - TC-017
       - FR-015
@@ -678,8 +1484,12 @@ decisions:
       Sí. La especificación asigna la consulta al CUSTOMER pero habla de
       usuarios autorizados e identidad autenticada para la consulta de Events;
       un ADMIN necesita ver lo que crea.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Sí. Un `ADMIN` puede listar Events, consultar su disponibilidad y
+      consultar el estado de aprovisionamiento de un Event. No puede iniciar
+      compras ni consultar Orders, salvo que pertenezca también al grupo
+      `CUSTOMER`.
     impact:
       - FR-019
       - AC-028
@@ -695,8 +1505,13 @@ decisions:
     question: "¿Se acepta medir la cobertura mínima del 90 % como cobertura de líneas agregada sobre dominio, casos de uso e infraestructura, solo con pruebas que no requieren contenedores, excluyendo únicamente arranque y clases de pura configuración?"
     recommended: >
       Sí. La especificación fija el umbral pero no la métrica ni el alcance.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Sí. La cobertura mínima del 90 % se mide como cobertura de líneas agregada
+      sobre `domain`, `application` e `infrastructure` de `ticketing`, solo con
+      pruebas que no requieren contenedores, excluyendo únicamente la clase de
+      arranque y las clases de pura configuración. Conforme a ADR-015,
+      `payment-mock` queda fuera de esta métrica.
     impact:
       - NFR-013
       - DEL-003
@@ -716,8 +1531,12 @@ decisions:
       error de validación, sin crear Reservation, Order ni Order ID y sin tocar
       el inventario. La especificación solo dice "uno o más"; el mecanismo
       transaccional impone un máximo técnico que se vuelve regla observable.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      Una Order debe solicitar entre 1 y 10 Ticket individuales, todos del mismo
+      Event y sin identificadores repetidos. Si la solicitud incumple cualquiera
+      de estas condiciones, se rechaza antes de reservar y no se crea
+      Reservation, Order ni Order ID ni se modifica el inventario.
     impact:
       - BR-014
       - FR-004
@@ -736,8 +1555,23 @@ decisions:
       completa con error de validación. La especificación solo exige capacidad
       mayor que cero; la creación síncrona y la consulta de disponibilidad
       tienen coste proporcional a la capacidad.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      Para esta implementación el máximo soportado y verificable será de 50.000
+      Ticket individuales por Event. Una solicitud que supere ese máximo se
+      rechazará completamente con un error de validación, sin crear parcialmente
+      el Event ni sus Ticket.
+
+      La creación de un Event de gran capacidad se procesará mediante escritura
+      por lotes bajo una fase técnica de aprovisionamiento. El Event solo quedará
+      habilitado para consulta y venta después de comprobar que la cantidad total
+      de Ticket creados coincide con `Event.capacity`. La consulta de
+      disponibilidad será paginada y no intentará retornar los 50.000 Ticket en
+      una única respuesta.
+
+      El límite podrá elevarse posteriormente mediante configuración y nuevas
+      pruebas de capacidad, sin cambiar el modelo de particionado por Ticket ni
+      las garantías funcionales de reserva atómica.
     impact:
       - VAL-008
       - FR-001
@@ -759,8 +1593,29 @@ decisions:
       sistema solicita al proveedor la cancelación del PaymentAttempt de forma
       idempotente y deja evidencia en la auditoría. Sin esta respuesta, el
       diseño solo registra y alerta la anomalía.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      La Order conserva su estado terminal y sus Ticket quedan liberados; una
+      aprobación tardía nunca reabre ni confirma la Order. El sistema debe
+      reversar el pago: la transición que cierra una Order con un PaymentAttempt
+      activo cuyo resultado fue aprobado o es desconocido la marca como
+      pendiente de reverso en la misma escritura transaccional. El worker
+      solicita al proveedor la cancelación del PaymentAttempt, con reintento
+      acotado, y al confirmarla retira la marca y deja un registro de auditoría.
+      Un reverso que agote sus reintentos se alerta y queda pendiente para
+      revisión manual.
+
+      La cancelación debe ser idempotente por `paymentAttemptId` y válida
+      cualquiera que sea el estado del intento en el proveedor: aprobado,
+      rechazado, inexistente o aún en tránsito. Se añade una regla para el
+      resultado desconocido: una cancelación que llega antes que el cobro
+      original debe quedar registrada por el proveedor, que rechazará cualquier
+      cobro posterior con ese mismo `paymentAttemptId`. Sin esta regla, un cobro
+      en tránsito podría aprobarse después de la cancelación y quedar sin
+      reverso.
+
+      El puerto de pago y el Payment Mock deben incorporar la operación de
+      cancelación con este comportamiento.
     impact:
       - AC-019
       - BR-003
@@ -785,8 +1640,14 @@ decisions:
       una Order si los Ticket volvieron a estar disponibles. La alternativa es
       persistir también los rechazos y devolverlos durante la vigencia de la
       clave.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED
+    answer: >
+      La repetición se reevalúa. Un rechazo síncrono por indisponibilidad no
+      persiste Reservation, Order ni registro de idempotencia, por lo que no
+      existe un resultado previo que conservar. Una repetición con la misma
+      idempotency key se procesa como una solicitud nueva y puede crear una
+      Order si los Ticket volvieron a estar disponibles; en ese caso la clave
+      queda registrada junto con esa Order. Los rechazos no se persisten.
     impact:
       - BR-019
       - FR-017
@@ -805,8 +1666,27 @@ decisions:
       La compra se rechaza síncronamente sin crear Reservation, Order ni Order
       ID. La consulta de disponibilidad por identificador sigue respondiendo; la
       especificación solo excluye los Events pasados del listado normal.
-    decision: PENDING
-    answer: null
+    decision: CONFIRMED_WITH_CHANGE
+    answer: >
+      No. La compra sobre un Event pasado se rechaza síncronamente, sin crear
+      Reservation, Order ni Order ID y sin modificar el inventario. La consulta
+      de disponibilidad por identificador de un Event pasado sigue respondiendo
+      de forma informativa; el Event solo se excluye del listado normal.
+
+      Un Event es pasado cuando su `startsAt` es menor o igual al instante
+      actual del servidor, en UTC, al recibir la solicitud de compra. Es el
+      mismo criterio que lo excluye del listado. La validación se realiza sobre
+      el Event antes de la transacción de reserva, conforme a ADR-002, sin
+      guardas adicionales dentro de ella.
+
+      Una Reservation creada antes de `startsAt` puede confirmarse dentro de su
+      vigencia aunque el Event haya comenzado. No se añade una guarda sobre
+      `startsAt` en la confirmación. Se declara como comportamiento aceptado.
+
+      El rechazo usa un código funcional propio, por ejemplo
+      `EVENT_NOT_ON_SALE`, distinto del rechazo por indisponibilidad de Ticket;
+      el status HTTP se define en ADR-016. Un Event en `PROVISIONING` o `FAILED`
+      sigue tratándose como inexistente conforme a ADR-004.
     impact:
       - FR-002
       - BR-022
@@ -837,38 +1717,6 @@ gate:
     - FG-003
     - FG-004
     - FG-005
-  pending_blocking_items:
-    - ADR-001
-    - ADR-002
-    - ADR-003
-    - ADR-005
-    - ADR-006
-    - ADR-007
-    - ADR-008
-    - ADR-009
-    - ADR-010
-    - ADR-013
-    - ADR-015
-    - AV-003
-    - FG-001
-    - FG-002
-    - FG-003
-    - FG-004
-    - FG-005
-  non_blocking_pending_items:
-    - ADR-004
-    - ADR-011
-    - ADR-012
-    - ADR-014
-    - ADR-016
-    - ADR-017
-    - ADR-018
-    - ADR-019
-    - ADR-020
-    - ADR-021
-    - AV-001
-    - AV-002
-    - AV-004
-    - AV-005
-    - AV-006
-  development_can_start: false
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  development_can_start: true
