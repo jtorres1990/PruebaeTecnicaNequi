@@ -1,0 +1,193 @@
+artifact: documentation-implementation-plan-review
+schema_version: 1.0
+plan: implementation/documentation.implementation-plan.v1.md
+
+review:
+  status: APPROVED
+  reviewed_by: human
+  reviewed_at: 2026-10-05
+
+items:
+  - id: PLAN
+    type: PLAN
+    priority: HIGH
+    question: >
+      ¿Se aprueba el plan de documentación en 6 incrementos (DOC-INC-001 a DOC-INC-006):
+      README bilingüe con el mismo índice de 23 secciones, siete documentos en docs/,
+      evolución en el lugar de la colección Postman v2.1 a las carpetas 00-09 y 99,
+      verificación por gates G1-G7 y estado máximo DOCUMENTATION_COMPLETE_WITH_PENDING_QA?
+    decision: CONFIRMED
+    answer: >
+      Se aprueba el plan de seis incrementos tal como se propone. Decisión adicional del humano: DOC-INC-002 no vuelve a ejecutar ./mvnw verify -Pintegration; las cifras de integración y cobertura se citan del informe de INC-010 indicando su revisión.
+
+  - id: DOC-IV-001
+    type: DOCUMENTATION_VALIDATION
+    priority: HIGH
+    question: >
+      Instrucción humana: dos README equivalentes, uno en español y otro en inglés.
+      ¿Cuál es la entrada canónica y cómo se enlazan entre sí?
+    options:
+      - "(a) README.md en español (canónico) + README.en.md en inglés. La primera línea de cada uno es un selector de idioma. Mismos 23 H2 numerados, bloques de código idénticos byte a byte (comentarios en inglés), mismos enlaces, IDs, tablas y etiquetas de estado. Comprobación automática de equivalencia en cada incremento. Ante una divergencia prevalece README.md"
+      - "(b) README.md en inglés (canónico, conserva el archivo actual) + README.es.md en español, con las mismas reglas de equivalencia"
+      - "(c) Un único README.md con las dos versiones, una a continuación de la otra"
+    recommended: "(a)"
+    rationale: >
+      El contrato del agente fija el español como idioma de la prosa principal y README.md
+      como entrada canónica. El enunciado y la reunión técnica son en español. GitHub
+      muestra README.md por defecto. El README inglés actual del humano pasa a ser la base
+      de README.en.md, sin perder contenido. La opción (c) duplica la longitud del archivo
+      de entrada y dificulta la navegación.
+    blocking: true
+    needed_before: DOC-INC-001
+    decision: CONFIRMED
+    answer: >
+      (a). README.md en español (canónico) y README.en.md en inglés, con selector de idioma, mismo índice y comprobación automática de equivalencia.
+
+  - id: DOC-IV-002
+    type: DOCUMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿En qué idioma se escribe docs/** (arquitectura, diagramas, guía de la colección, demostración, resiliencia, operación y trazabilidad)?"
+    options:
+      - "(a) Solo español. Ambos README cubren por completo DEL-002 y la ruta operativa; README.en.md marca los enlaces a docs/ como '(Spanish)'"
+      - "(b) Bilingüe completo: docs/es/** y docs/en/** con la misma comprobación de equivalencia que los README"
+      - "(c) Solo inglés"
+    recommended: "(a)"
+    rationale: >
+      docs/** es material de profundidad. Duplicarlo multiplica el mantenimiento y el riesgo
+      de divergencia sin añadir cobertura de DEL-002, que ya está completa en ambos README.
+      El contrato del agente fija el español como idioma de la prosa principal.
+    blocking: false
+    needed_before: DOC-INC-004
+    decision: CONFIRMED
+    answer: >
+      (a). docs/** solo en español; README.en.md marca esos enlaces como (Spanish).
+
+  - id: DOC-IV-003
+    type: DOCUMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿En qué idioma se escriben los nombres y descripciones de la colección Postman (un único archivo)?"
+    options:
+      - "(a) Solo español (como la colección actual)"
+      - "(b) Nombres con número, ID y título breve en español (p. ej. '04.01 API-004 Iniciar compra'); descripciones en español seguidas de una línea 'EN:' en inglés; nombres de prueba basados en códigos del contrato ('202 Accepted', 'status CONFIRMED')"
+      - "(c) Solo inglés"
+      - "(d) Dos colecciones, una por idioma"
+    recommended: "(b)"
+    rationale: >
+      Mantiene un único artefacto de DEL-004 y lo hace usable desde ambos README. La opción
+      (d) duplica la colección y su verificación.
+    blocking: false
+    needed_before: DOC-INC-003
+    decision: CONFIRMED
+    answer: >
+      (b). Nombres con número, ID y título en español; descripciones en español seguidas de una línea 'EN:' en inglés; un solo archivo.
+
+  - id: DOC-IV-004
+    type: DOCUMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Cómo se trata la colección existente del humano (30 solicitudes validadas con newman)?"
+    options:
+      - "(a) Mantener Postman Collection v2.1 y evolucionar en el lugar los dos archivos existentes (mismos nombres): reorganizar en las carpetas 00-09 y 99, conservar las 30 solicitudes, corregir los defectos del plan §2.3 y añadir los escenarios del plan §5. Curl equivalente en el README solo para MF-001 a MF-004"
+      - "(b) Crear una colección nueva y conservar la actual sin cambios"
+      - "(c) Cambiar a Insomnia o a un archivo de curl"
+    recommended: "(a)"
+    rationale: >
+      Conserva el trabajo validado y evita dos colecciones que puedan divergir. Postman v2.1
+      permite capturar variables entre solicitudes y sondear de forma acotada, y newman ya
+      está disponible para verificarla.
+    blocking: false
+    needed_before: DOC-INC-003
+    decision: CONFIRMED
+    answer: >
+      (b). Se crea una colección nueva (con su environment) y la colección actual del humano (postman/ticketing.postman_collection.json y ticketing-local.postman_environment.json) se conserva sin cambios. La nueva incorpora los escenarios del plan y corrige en ella los defectos detectados (estado REJECTED, IDs de API, environment sin clave).
+
+  - id: DOC-IV-005
+    type: DOCUMENTATION_VALIDATION
+    priority: MEDIUM
+    question: >
+      Algunos escenarios son lentos por diseño: reintento transitorio (lease de 45 s, backoff
+      por visibilidad), reverso de MF-005 con las 5 recepciones agotadas (varios minutos) y
+      Event pasado para EVENT_NOT_ON_SALE (unos 20 s). ¿Cómo se incluyen?
+    options:
+      - "(a) En carpetas separadas, fuera de la ejecución por defecto, que se ejecutan explícitamente (Runner o newman --folder) con sondeo acotado configurable (slowMaxPolls). Se incluyen solo si se verifican de forma estable; si no, quedan como procedimientos documentados con su motivo"
+      - "(b) Todo dentro de la ejecución por defecto"
+      - "(c) Solo como procedimientos en docs/, sin solicitudes en la colección"
+    recommended: "(a)"
+    rationale: >
+      La ejecución por defecto sigue siendo breve y determinista para la demostración, y
+      MF-005 y AC-037/AC-038 siguen siendo demostrables a quien disponga de tiempo.
+    blocking: false
+    needed_before: DOC-INC-003
+    decision: CONFIRMED
+    answer: >
+      (a). Escenarios lentos en carpetas aparte, fuera de la ejecución por defecto, con sondeo acotado; solo si son estables, si no quedan como procedimiento documentado.
+
+  - id: DOC-IV-006
+    type: DOCUMENTATION_VALIDATION
+    priority: MEDIUM
+    question: >
+      Los ADR, la arquitectura v2, los OpenAPI originales, los informes de evidencia y el
+      material del humano (docx, pptx, drawio, html) solo existen en SPEC_REPO
+      (github.com/jtorres1990/PruebaeTecnicaNequi). CODE_REPO es github.com/jtorres1990/ticketingNequi.
+      ¿Cómo los referencia la documentación de CODE_REPO?
+    options:
+      - "(a) Documentación autosuficiente (cada decisión resumida con su ADR-ID) y enlaces absolutos a SPEC_REPO en GitHub, solo si el humano confirma que los evaluadores tendrán acceso. Los OpenAPI se enlazan en sus copias de CODE_REPO, verificadas por SHA-256"
+      - "(b) Documentación autosuficiente, citando solo los IDs (ADR-xxx, INC-xxx), sin enlaces externos"
+      - "(c) Copiar ADR y arquitectura dentro de CODE_REPO/docs"
+    recommended: "(a) si SPEC_REPO será accesible para los evaluadores; si no, (b)"
+    rationale: >
+      Evita enlaces rotos y no duplica artefactos normativos. La opción (c) crea copias que
+      pueden divergir de la fuente vigente.
+    blocking: false
+    needed_before: DOC-INC-004
+    decision: CONFIRMED
+    answer: >
+      (a). Documentación autosuficiente con ADR-ID y enlaces absolutos a SPEC_REPO en GitHub (github.com/jtorres1990/PruebaeTecnicaNequi): el humano confirma que los evaluadores tendrán acceso.
+
+  - id: DOC-IV-007
+    type: DOCUMENTATION_VALIDATION
+    priority: MEDIUM
+    question: >
+      Para verificar los comandos documentados, ¿se autoriza a Documentation a ejecutar estas
+      acciones sobre el proyecto Compose 'ticketing-platform', restaurando al final el estado
+      encontrado (hoy solo dependencias levantadas por PLAT-INC-007)?
+    options:
+      - "(a) Autorizar: docker compose down -v del proyecto (incluido --profile load), up -d --wait, docker compose pause/unpause localstack y docker compose stop/start/kill de ticketing-worker y payment-mock, solo para comprobar comandos y señales de los procedimientos de resiliencia. Sus resultados se rotulan como 'comando verificado; escenario NOT_YET_VALIDATED_BY_QA'. Prohibidos: limpieza global de Docker, eliminación de imágenes ajenas y builder prune"
+      - "(b) Autorizar solo down (sin -v) y up; los comandos de resiliencia quedan sin ejecutar y rotulados 'no verificado'"
+      - "(c) No autorizar acciones destructivas; solo docker compose config y verificación sobre el entorno ya levantado"
+    recommended: "(a)"
+    rationale: >
+      La topología por defecto no usa volúmenes de datos (los emuladores son efímeros), y
+      down -v solo afecta además al volumen load-tokens del perfil load. Sin estas acciones,
+      el arranque limpio y los procedimientos de resiliencia quedarían documentados sin
+      verificar su sintaxis ni sus señales.
+    blocking: false
+    needed_before: DOC-INC-002
+    decision: CONFIRMED
+    answer: >
+      (a). Se autorizan down -v, up -d --wait, pause/unpause de localstack y stop/start/kill de ticketing-worker y payment-mock sobre el proyecto ticketing-platform, solo para verificar comandos, restaurando al final el estado encontrado y sin presentar los resultados como QA.
+
+  - id: DOC-IV-008
+    type: DOCUMENTATION_VALIDATION
+    priority: LOW
+    question: >
+      ADR-036 exige documentar en el README la alternativa "LocalStack actual con token
+      gratuito en un archivo no versionado". Compose fija localstack 4.14.0 por digest, sin
+      variable de imagen ni de LOCALSTACK_AUTH_TOKEN (DOC-ISSUE-007). ¿Cómo se documenta?
+    options:
+      - "(a) En docs/operations.md, como ejemplo conceptual rotulado 'Designed, not implemented / no verificado': un override local no versionado que cambia la imagen y toma el token del .env. Nunca se ejecuta con un token real. Se deja claro que el entorno soportado y verificado es 4.14.0 sin token. DOC-ISSUE-007 a Platform para un mecanismo soportado"
+      - "(b) No documentarla hasta que Platform añada la parametrización"
+      - "(c) Omitirla"
+    recommended: "(a)"
+    rationale: >
+      Cumple ADR-036 sin presentar como verificado un camino que no lo está y sin manejar
+      credenciales. (b) deja DEL-002 incompleto respecto de ADR-036 y (c) lo incumple.
+    blocking: false
+    needed_before: DOC-INC-002
+    decision: CONFIRMED
+    answer: >
+      (a). Ejemplo conceptual en docs/operations.md rotulado como diseñado y no verificado; el entorno soportado es LocalStack 4.14.0 sin token.
+
+gate:
+  blocking_items: [PLAN, DOC-IV-001]
+  pending_blocking_items: []
+  implementation_can_start: true
