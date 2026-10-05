@@ -1,0 +1,90 @@
+artifact: implementation-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/increments/INC-010.report.md
+  section: "6.2 Preguntas para revisión humana"
+  increment: INC-010
+
+review:
+  status: APPROVED
+  reviewer: human
+  reviewed_at: 2026-10-05
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: IV-023
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "Los logs estructurados de los ganchos de observabilidad (CMP-018) se escriben fuera de los hilos reactivos mediante una cola sin bloqueos y un hilo de plataforma dedicado (los adaptadores no pueden escribir en consola desde hilos reactivos: es E/S bloqueante, NFR-003). Ninguna fuente cuantifica el tamaño de esa cola. ¿Se aprueba el valor implementado?"
+    options:
+      - "(a) Aprobar: como máximo 10.000 registros pendientes; al llenarse, el registro nuevo se descarta y se cuenta en la métrica ticketing.log.dropped (las métricas nunca se descartan); configurable en ticketing.observability.log-queue-capacity (ObservabilitySettings)"
+      - "(b) Aprobar con otro valor indicado por el humano"
+      - "(c) Devolver al Architect"
+    recommended: >
+      (a). Acota la memoria (unos pocos MB en el peor caso) y nunca bloquea una solicitud ni un mensaje; una
+      tormenta de errores degrada solo los logs, visible en ticketing.log.dropped. Es una guarda técnica de la
+      infraestructura de logs, no un valor funcional ni de resiliencia de los ADR. No bloquea ningún incremento.
+    decision: CONFIRMED
+    answer: >
+      (a). Cola de logs de 10.000 registros con descarte contado en ticketing.log.dropped, configurable en ticketing.observability.log-queue-capacity.
+    impact:
+      - INC-010
+      - CMP-018
+      - ADR-037
+      - NFR-003
+
+  - id: IV-024
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "En una ejecución completa de INC-010, BlockHound detectó Unsafe#park en un hilo de Netty dentro de Spring Boot (PrometheusExemplarsAutoConfiguration$LazyTracingSpanContext#currentSpan -> SingletonSupplier.get -> ReentrantLock.lock) cuando las dos primeras observaciones HTTP del proceso terminan a la vez: la primera inicialización perezosa del trazador para los exemplars de Prometheus toma un lock breve, sin E/S; después es libre de locks. La solicitud afectada respondió 500 en la prueba. Se aplicó, igual que IV-022, una excepción documentada para ese interno de terceros solo en la JVM de pruebas de bootstrap. ¿Se mantiene?"
+    options:
+      - "(a) Confirmar la excepción documentada (plan §4.3) para PrometheusExemplarsAutoConfiguration$LazyTracingSpanContext#currentSpan"
+      - "(b) Desactivar los exemplars de Prometheus (sin excepción; las métricas pierden el enlace con la traza)"
+      - "(c) Inicializar el trazador de exemplars al arrancar (código de composición adicional, sin excepción)"
+    recommended: >
+      (a). Es una sección crítica de inicialización única, sin E/S, de la misma categoría que las excepciones ya
+      aprobadas (SDK de AWS en INC-005, asignador de Netty en IV-022); en producción no hay BlockHound y el efecto
+      es un aparcamiento de microsegundos una sola vez. Tras aplicarla, dos ejecuciones completas consecutivas
+      terminaron en verde sin detecciones. No bloquea ningún incremento.
+    decision: CONFIRMED
+    answer: >
+      (a). Se confirma la excepción documentada de BlockHound para PrometheusExemplarsAutoConfiguration$LazyTracingSpanContext#currentSpan, solo en la JVM de pruebas de bootstrap.
+    impact:
+      - INC-010
+      - NFR-003
+      - ADR-038
+
+  - id: IV-025
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "IV-012 hace configurable el máximo de Ticket por Order (desplegado 10). El addendum de consolidación fija los tamaños de transacción para una Order de 10 Ticket (14 items en la reserva, 13 en las terminales, 12 en el inicio de pago). La implementación acepta configurar el máximo entre 1 y 10 y rechaza al arrancar un valor mayor. ¿Se aprueba ese límite superior?"
+    options:
+      - "(a) Aprobar: ticketing.orders.maximum-tickets-per-order configurable entre 1 y 10; un valor mayor requeriría revisar los tamaños de transacción aprobados (Architect)"
+      - "(b) Permitir valores mayores que 10 (cambia los tamaños de transacción del addendum; requiere Architect)"
+    recommended: >
+      (a). Respeta a la vez la configurabilidad de la spec §13.1 y los tamaños de transacción aprobados; reducir
+      el máximo es seguro. El invariante estructural de Order sigue siendo 1..10. No bloquea ningún incremento.
+    decision: CONFIRMED
+    answer: >
+      (a). ticketing.orders.maximum-tickets-per-order configurable entre 1 y 10; un valor mayor requeriría revisar con el Architect los tamaños de transacción aprobados.
+    impact:
+      - INC-010
+      - IV-012
+      - VAL-012
+      - ticketing.consolidation-addendum.v1.md
+
+# No blocking items: IV-023, IV-024 and IV-025 are LOW and do not stop dependent increments.
+# This gate is computed by the agent and is not an approval.
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
