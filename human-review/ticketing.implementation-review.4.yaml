@@ -1,0 +1,53 @@
+artifact: implementation-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/increments/INC-006.report.md
+  section: "6.2 Preguntas para revisión humana"
+  increment: INC-006
+
+review:
+  status: APPROVED
+  reviewer: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: IV-019
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "ADR-029 y ticketing.messaging.v2.md §3 fijan el backoff por visibilidad entre recepciones (Orders 5/15/30/60 s; aprovisionamiento 30/60/120/240 s) \"con jitter\", pero ninguna fuente cuantifica el jitter y no está en la tabla de IV-004. ¿Se aprueba el valor implementado como propiedad configurable?"
+    options:
+      - "(a) Aprobar: jitter simétrico del 20 % sobre el valor nominal de cada recepción (5 s -> 4..6 s, 60 s -> 48..72 s; 30 s -> 24..36 s, 240 s -> 192..288 s), redondeado a segundos enteros, configurable en ConsumerLoopSettings.retryJitter"
+      - "(b) Aprobar con otro porcentaje indicado por el humano (por ejemplo, el 50 % usado en IV-004 para los backoff exponenciales)"
+      - "(c) Devolver al Architect"
+    recommended: >
+      (a). Mantiene reconocibles los valores nominales aprobados y el presupuesto total de
+      reintentos de Orders en pocos minutos (BR-002: muy por debajo de los diez minutos de la
+      Reservation); el 50 % de IV-004 se aprobó para backoff exponenciales cortos, donde la
+      amplitud absoluta es pequeña. El valor es una propiedad configurable y el enlace a
+      propiedades se hace en INC-010. No bloquea ningún incremento.
+    decision: CONFIRMED
+    answer: >
+      (a). Jitter simétrico del 20 % sobre el valor nominal de cada
+      recepción, redondeado a segundos enteros, configurable en
+      ConsumerLoopSettings.retryJitter.
+    impact:
+      - INC-006
+      - INC-010
+      - ADR-029
+      - ALT-004
+      - ERR-005
+
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
