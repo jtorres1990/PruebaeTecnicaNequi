@@ -1,0 +1,59 @@
+artifact: platform-implementation-review
+schema_version: 1.0
+feature: ticketing
+plan: implementation/platform.implementation-plan.v1.md
+source:
+  artifact: implementation/platform-increments/PLAT-INC-006.report.md
+  increment: PLAT-INC-006
+  sections: ["1. Implemented", "4.7 Perfil load", "6. Deviations"]
+
+review:
+  status: APPROVED
+  reviewed_by: human
+  reviewed_at: 2026-10-05
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+items:
+
+  - id: PLAT-IV-016
+    type: PLATFORM_VALIDATION
+    priority: LOW
+    question: >
+      PLAT-IV-010 (a) define load-test (perfil load) con los montajes "load-tests/ solo
+      lectura" y "load-tokens". La carpeta CODE_REPO/load-tests/ (de QA) todavía no existe.
+      Declarado como bind de solo lectura con bind.create_host_path: false, Docker Desktop
+      (Windows, Compose v5.5.1) creó igualmente un directorio vacío load-tests/ al ejecutar
+      "docker compose --profile load up", es decir, escribió en una ruta de QA. Platform
+      retiró ese montaje (el directorio vacío se eliminó) y load-test monta solo
+      load-tokens; su comando provisional sigue fallando con un mensaje explícito.
+      ¿Cómo debe quedar el montaje de load-tests/?
+    options:
+      - "(a) Sin el bind hasta que QA entregue load-tests/; QA lo añade (./load-tests:/load-tests:ro) junto con su imagen y comando (estado actual)"
+      - "(b) Declarar el bind ya y aceptar que el primer 'docker compose --profile load up' cree load-tests/ vacío en el host"
+      - "(c) Otra, indicada por el humano o por QA (p. ej. QA crea ya load-tests/ con un README y Platform declara el bind)"
+    recommended: >
+      (a). No escribe en rutas de QA, no cambia el comportamiento (load-test falla con su
+      mensaje provisional hasta el handoff de QA) y deja la integración documentada en el
+      comentario del servicio.
+    blocking: false
+    needed_before: PLAT-INC-007
+    decision: CONFIRMED
+    answer: >
+      (a). load-test queda sin montar load-tests/ hasta que QA entregue su arnés y
+      agregue el montaje. Además el humano autoriza para PLAT-INC-007: añadir
+      pull_policy: never a payment-mock, infra-init, local-idp y
+      load-token-generator, y bajar el proyecto ticketing-platform para las
+      pruebas desde limpio.
+    impact: [PLAT-INC-006, PLAT-INC-007, PLAT-IV-010, ADR-036]
+
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  increment_can_resume:
+    PLAT-INC-007: true
