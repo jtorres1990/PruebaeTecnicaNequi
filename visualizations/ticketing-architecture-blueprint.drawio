@@ -1,0 +1,636 @@
+<mxfile host="Electron" agent="Codex" compressed="false" pages="10">
+  <diagram id="system-context" name="01 - Contexto del sistema">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="c-header" value="CONTEXTO DEL SISTEMA · ALCANCE Y RESPONSABILIDADES" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="1600" height="70" as="geometry"/></mxCell>
+        <mxCell id="c-subtitle" value="El backend administra inventario y órdenes; identidad y pagos permanecen como sistemas externos" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontColor=#486579;" vertex="1" parent="1"><mxGeometry x="30" y="78" width="1100" height="30" as="geometry"/></mxCell>
+        <mxCell id="c-admin" value="ADMINISTRADOR&#xa;crea eventos&#xa;consulta aprovisionamiento" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="70" y="210" width="220" height="115" as="geometry"/></mxCell>
+        <mxCell id="c-customer" value="CLIENTE&#xa;consulta disponibilidad&#xa;inicia compra y consulta orden" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="70" y="500" width="220" height="115" as="geometry"/></mxCell>
+        <mxCell id="c-system" value="TICKETING EVENT PROCESSING PLATFORM" style="swimlane;horizontal=1;startSize=48;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#2D78A8;strokeWidth=2;fontColor=#12324A;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="450" y="160" width="700" height="520" as="geometry"/></mxCell>
+        <mxCell id="c-api" value="API reactiva&#xa;eventos · disponibilidad · compras · órdenes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="505" y="260" width="260" height="105" as="geometry"/></mxCell>
+        <mxCell id="c-worker" value="Procesamiento asíncrono&#xa;órdenes · aprovisionamiento · expiración · reversos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#D98A35;fontColor=#57310E;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="835" y="260" width="260" height="105" as="geometry"/></mxCell>
+        <mxCell id="c-responsibility" value="Responsabilidad central&#xa;• cero sobreventa mediante transacciones condicionales&#xa;• reserva temporal de 10 minutos&#xa;• procesamiento at-least-once con efectos idempotentes&#xa;• trazabilidad de cada transición" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=15;align=left;spacingLeft=18;" vertex="1" parent="1"><mxGeometry x="505" y="425" width="590" height="165" as="geometry"/></mxCell>
+        <mxCell id="c-idp" value="PROVEEDOR DE IDENTIDAD&#xa;OIDC local / Amazon Cognito&#xa;emite JWT y grupos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1290" y="200" width="230" height="120" as="geometry"/></mxCell>
+        <mxCell id="c-payment" value="PROVEEDOR DE PAGOS&#xa;Payment Mock / proveedor real&#xa;autoriza y cancela intentos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1290" y="500" width="230" height="120" as="geometry"/></mxCell>
+        <mxCell id="c-note" value="Fuera de alcance del backend: autenticación de credenciales, liquidación financiera y experiencia de usuario" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="450" y="745" width="700" height="60" as="geometry"/></mxCell>
+        <mxCell id="c-e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="290" y="270" as="sourcePoint"/><mxPoint x="505" y="290" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="c-e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="290" y="555" as="sourcePoint"/><Array as="points"><mxPoint x="375" y="555"/><mxPoint x="375" y="340"/></Array><mxPoint x="505" y="340" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="c-e5" value="valida JWT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#8064A2;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1150" y="250" as="sourcePoint"/><mxPoint x="1290" y="250" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="c-e6" value="autoriza / cancela" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8064A2;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1095" y="315" as="sourcePoint"/><Array as="points"><mxPoint x="1210" y="315"/><mxPoint x="1210" y="560"/></Array><mxPoint x="1290" y="560" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="c-e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="765" y="315" as="sourcePoint"/><mxPoint x="835" y="315" as="targetPoint"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="logical-blueprint" name="02 - Contenedores lógicos">
+    <mxGraphModel dx="1664" dy="999" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="l-header" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" value="BLUEPRINT DE ARQUITECTURA · TICKETING" vertex="1">
+          <mxGeometry height="70" width="1600" as="geometry" />
+        </mxCell>
+        <mxCell id="l-subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontColor=#486579;" value="Vista lógica común a ejecución local y despliegue objetivo en AWS" vertex="1">
+          <mxGeometry height="30" width="900" x="30" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="l-actors" parent="1" style="swimlane;horizontal=1;startSize=36;rounded=1;whiteSpace=wrap;html=1;fillColor=#EDF3F7;swimlaneFillColor=#FFFFFF;strokeColor=#9BB0BE;fontColor=#12324A;fontSize=14;fontStyle=1;" value="ACTORES" vertex="1">
+          <mxGeometry height="300" width="175" x="30" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="l-admin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=14;" value="Administrador&#xa;crea eventos" vertex="1">
+          <mxGeometry height="70" width="130" x="52" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="l-customer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=14;" value="Cliente&#xa;consulta y compra" vertex="1">
+          <mxGeometry height="70" width="130" x="52" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="l-api-boundary" parent="1" style="swimlane;horizontal=1;startSize=40;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=15;fontStyle=1;" value="ROL API · SPRING WEBFLUX" vertex="1">
+          <mxGeometry height="440" width="360" x="255" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="l-http" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;" value="API HTTP reactiva&#xa;contrato y Problem Details" vertex="1">
+          <mxGeometry height="65" width="290" x="290" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="l-security" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;" value="Seguridad&#xa;JWT, roles y propiedad" vertex="1">
+          <mxGeometry height="65" width="290" x="290" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="l-api-usecases" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=14;fontStyle=1;" value="Casos de uso API&#xa;eventos · disponibilidad · compra · consulta" vertex="1">
+          <mxGeometry height="75" width="290" x="290" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="l-api-adapters" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;" value="Adaptadores de salida&#xa;DynamoDB · SQS" vertex="1">
+          <mxGeometry height="65" width="290" x="290" y="465" as="geometry" />
+        </mxCell>
+        <mxCell id="l-worker-boundary" parent="1" style="swimlane;horizontal=1;startSize=40;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CF;swimlaneFillColor=#FFFBF6;strokeColor=#D98A35;fontColor=#57310E;fontSize=15;fontStyle=1;" value="ROL WORKER · PROCESAMIENTO ASÍNCRONO" vertex="1">
+          <mxGeometry height="440" width="405" x="670" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="l-orders-consumer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" value="Consumidor de órdenes&#xa;pago y transición terminal" vertex="1">
+          <mxGeometry height="75" width="155" x="705" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="l-provision-consumer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" value="Consumidor de aprovisionamiento&#xa;lotes y verificación" vertex="1">
+          <mxGeometry height="75" width="160" x="880" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="l-worker-usecases" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=14;fontStyle=1;" value="Casos de uso worker&#xa;procesar · expirar · republicar · revertir" vertex="1">
+          <mxGeometry height="75" width="335" x="705" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="l-scheduler" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" value="Procesos periódicos&#xa;planificación aislada" vertex="1">
+          <mxGeometry height="70" width="155" x="705" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="l-payment-adapter" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" value="Adaptador de pagos&#xa;retry y circuit breaker" vertex="1">
+          <mxGeometry height="70" width="160" x="880" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="l-domain" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#57310E;strokeColor=#57310E;fontColor=#FFFFFF;fontSize=14;fontStyle=1;" value="DOMINIO COMPARTIDO · estados, invariantes, idempotencia y políticas" vertex="1">
+          <mxGeometry height="45" width="335" x="705" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="l-platform" parent="1" style="swimlane;horizontal=1;startSize=40;rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;swimlaneFillColor=#F8FCFA;strokeColor=#5A9D72;fontColor=#163E25;fontSize=15;fontStyle=1;" value="PLATAFORMA DE DATOS Y MENSAJERÍA" vertex="1">
+          <mxGeometry height="440" width="430" x="1130" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="l-ddb" parent="1" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" value="DynamoDB · tabla única&#xa;transacciones condicionales&#xa;Ticket por partición · GSI con sharding" vertex="1">
+          <mxGeometry height="105" width="350" x="1170" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="l-orders-q" parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;" value="SQS órdenes&#xa;Standard · at-least-once" vertex="1">
+          <mxGeometry height="75" width="155" x="1170" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="l-orders-dlq" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=13;" value="DLQ&#xa;órdenes" vertex="1">
+          <mxGeometry height="60" width="140" x="1178" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="l-prov-q" parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;" value="SQS aprovisionamiento&#xa;Standard · heartbeat" vertex="1">
+          <mxGeometry height="75" width="160" x="1360" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="l-prov-dlq" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=13;" value="DLQ&#xa;aprovisionamiento" vertex="1">
+          <mxGeometry height="60" width="145" x="1368" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="l-idp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="IDENTIDAD&#xa;OIDC local / Cognito" vertex="1">
+          <mxGeometry height="75" width="260" x="255" y="625" as="geometry" />
+        </mxCell>
+        <mxCell id="l-payment" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="PROVEEDOR DE PAGOS&#xa;Payment Mock / proveedor real" vertex="1">
+          <mxGeometry height="75" width="405" x="670" y="625" as="geometry" />
+        </mxCell>
+        <mxCell id="l-observability" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=14;fontStyle=1;" value="OBSERVABILIDAD TRANSVERSAL · logs estructurados · métricas · trazas · alarmas" vertex="1">
+          <mxGeometry height="65" width="1305" x="255" y="750" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e1" edge="1" parent="1" source="l-actors" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2D5A75;" target="l-http" value="HTTPS + JWT">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e2" edge="1" parent="1" source="l-idp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#8064A2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="l-security" value="valida tokens">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e3" edge="1" parent="1" source="l-api-adapters" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="l-ddb" value="transacciones">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="435.06" y="729.94" />
+              <mxPoint x="1345.06" y="729.94" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="l-e4" edge="1" parent="1" source="l-api-adapters" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="l-orders-q" value="MSG-001">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1150" y="489.94" />
+              <mxPoint x="1150" y="387.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="l-e5" edge="1" parent="1" source="l-api-adapters" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="l-prov-q" value="MSG-002">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="435.06" y="589.94" />
+              <mxPoint x="1540" y="589.94" />
+              <mxPoint x="1540" y="387.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="l-e6" edge="1" parent="1" source="l-orders-q" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#8B501A;" target="l-orders-consumer" value="consume">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e7" edge="1" parent="1" source="l-prov-q" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#8B501A;" target="l-provision-consumer" value="consume">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e8" edge="1" parent="1" source="l-worker-usecases" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="l-ddb" value="lecturas y escrituras">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e9" edge="1" parent="1" source="l-payment-adapter" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#8064A2;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="l-payment" value="autoriza / cancela">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e10" edge="1" parent="1" source="l-orders-q" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#C95D50;endArrow=block;endFill=1;fontSize=11;fontColor=#762B24;" target="l-orders-dlq" value="redrive">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e11" edge="1" parent="1" source="l-prov-q" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#C95D50;endArrow=block;endFill=1;fontSize=11;fontColor=#762B24;" target="l-prov-dlq" value="redrive">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e12" edge="1" parent="1" source="l-api-boundary" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;fontColor=#52636E;" target="l-observability" value="telemetría">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="l-e13" edge="1" parent="1" source="l-worker-boundary" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;fontColor=#52636E;" target="l-observability" value="telemetría">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="api-components" name="03 - Componentes del API">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="api-header" value="COMPONENTES DEL ROL API · CLEAN ARCHITECTURE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="1600" height="70" as="geometry"/></mxCell>
+        <mxCell id="api-sub" value="Las dependencias apuntan al dominio; Spring y AWS quedan confinados en infraestructura" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=15;fontColor=#486579;" vertex="1" parent="1"><mxGeometry x="30" y="80" width="1000" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="api-entry" value="ADAPTADORES DE ENTRADA" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="35" y="140" width="315" height="600" as="geometry"/></mxCell>
+        <mxCell id="api-http" value="CMP-001 · HTTP API entrypoint&#xa;API-001 a API-006&#xa;comandos y respuestas Mono / Flux" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="70" y="220" width="245" height="100" as="geometry"/></mxCell>
+        <mxCell id="api-sec" value="CMP-002 · Security&#xa;Resource Server · grupos&#xa;rol y propiedad de la Order" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;" vertex="1" parent="1"><mxGeometry x="70" y="350" width="245" height="90" as="geometry"/></mxCell>
+        <mxCell id="api-guard" value="CMP-017 · Request Guard&#xa;cuerpo ≤ 256 KB&#xa;límite por sujeto" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;" vertex="1" parent="1"><mxGeometry x="70" y="470" width="245" height="85" as="geometry"/></mxCell>
+        <mxCell id="api-errors" value="CMP-016 · Error Translation&#xa;Problem Details&#xa;códigos funcionales estables" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;" vertex="1" parent="1"><mxGeometry x="70" y="585" width="245" height="85" as="geometry"/></mxCell>
+
+        <mxCell id="api-app" value="CAPA DE APLICACIÓN · PUERTOS DE ENTRADA" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CF;swimlaneFillColor=#FFFBF6;strokeColor=#D98A35;fontColor=#57310E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="390" y="140" width="500" height="600" as="geometry"/></mxCell>
+        <mxCell id="api-event" value="CMP-003 · Event Management&#xa;idempotencia · PROVISIONING&#xa;publica MSG-002" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="430" y="220" width="190" height="105" as="geometry"/></mxCell>
+        <mxCell id="api-availability" value="CMP-004 · Catálogo y disponibilidad&#xa;Events ENABLED · cursor&#xa;recuento cacheado 1 s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="655" y="220" width="195" height="105" as="geometry"/></mxCell>
+        <mxCell id="api-purchase" value="CMP-005 · Inicio de compra&#xa;validaciones · TransactWriteItems&#xa;publicación y compensación" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="430" y="365" width="190" height="115" as="geometry"/></mxCell>
+        <mxCell id="api-order-query" value="CMP-006 · Consulta de Order&#xa;lectura fuerte&#xa;propia e inexistente indistinguibles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="655" y="365" width="195" height="115" as="geometry"/></mxCell>
+        <mxCell id="api-domain" value="CMP-009 · DOMINIO&#xa;máquinas de estado · invariantes · sharding estable&#xa;sin Spring, AWS ni tipos HTTP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#57310E;strokeColor=#57310E;fontColor=#FFFFFF;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="430" y="545" width="420" height="105" as="geometry"/></mxCell>
+
+        <mxCell id="api-ports" value="PUERTOS DE SALIDA" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;swimlaneFillColor=#F8FCFA;strokeColor=#5A9D72;fontColor=#163E25;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="930" y="140" width="290" height="600" as="geometry"/></mxCell>
+        <mxCell id="api-port-data" value="Persistencia&#xa;Event Catalog&#xa;Ticket Inventory&#xa;Order Lifecycle Store&#xa;Order Reader" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A9D72;fontColor=#163E25;fontSize=14;" vertex="1" parent="1"><mxGeometry x="970" y="230" width="210" height="150" as="geometry"/></mxCell>
+        <mxCell id="api-port-idem" value="Idempotency Store&#xa;Clock · Id Generator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A9D72;fontColor=#163E25;fontSize=14;" vertex="1" parent="1"><mxGeometry x="970" y="420" width="210" height="85" as="geometry"/></mxCell>
+        <mxCell id="api-port-msg" value="Order Queue Publisher&#xa;Provisioning Queue Publisher&#xa;estado del circuit breaker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A9D72;fontColor=#163E25;fontSize=14;" vertex="1" parent="1"><mxGeometry x="970" y="545" width="210" height="100" as="geometry"/></mxCell>
+
+        <mxCell id="api-out" value="ADAPTADORES DE SALIDA" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;swimlaneFillColor=#FFFFFF;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1260" y="140" width="300" height="600" as="geometry"/></mxCell>
+        <mxCell id="api-ddb" value="CMP-010 · DynamoDB Adapter&#xa;transacciones multi-partición&#xa;lecturas fuertes y GSI" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1305" y="245" width="210" height="125" as="geometry"/></mxCell>
+        <mxCell id="api-sqs" value="CMP-011 · SQS Publisher&#xa;MSG-001 / MSG-002&#xa;500 ms · 3 intentos · 2 s" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1305" y="440" width="210" height="120" as="geometry"/></mxCell>
+        <mxCell id="api-resilience" value="CMP-026 · Resilience Policies&#xa;retry selectivo · circuit breaker&#xa;503 antes de reservar si está abierto" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=13;" vertex="1" parent="1"><mxGeometry x="1305" y="605" width="210" height="80" as="geometry"/></mxCell>
+
+        <mxCell id="api-e1" value="comandos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="api-entry" target="api-app"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="api-e2" value="reglas puras" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="api-purchase" target="api-domain"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="api-e3" value="interfaces" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="api-app" target="api-ports"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="api-e4" value="implementan" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7B8B95;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="api-out" target="api-ports"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="api-note" value="Regla de dependencia: Infrastructure → Application → Domain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="390" y="785" width="830" height="50" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="worker-components" name="04 - Componentes del worker">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="w-header" value="COMPONENTES DEL ROL WORKER · MENSAJES Y PROCESOS PERIÓDICOS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="1600" height="70" as="geometry"/></mxCell>
+        <mxCell id="w-sub" value="Cada disparador tiene concurrencia y planificación propia; los casos de uso comparten las mismas invariantes" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=15;fontColor=#486579;" vertex="1" parent="1"><mxGeometry x="30" y="80" width="1100" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="w-input" value="DISPARADORES" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="35" y="140" width="300" height="630" as="geometry"/></mxCell>
+        <mxCell id="w-order-consumer" value="CMP-012 · Orders Consumer&#xa;long polling · concurrencia 16&#xa;visibilidad 60 s · 5 recepciones" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="70" y="220" width="230" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-prov-consumer" value="CMP-025 · Provisioning Consumer&#xa;concurrencia 1 · visibilidad 120 s&#xa;heartbeat cada 30 s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="70" y="365" width="230" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-scheduler" value="CMP-014 · Scheduler&#xa;expiración 5 s · barrido 10 s&#xa;reversos 10 s · limpieza 60 s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="70" y="510" width="230" height="110" as="geometry"/></mxCell>
+        <mxCell id="w-pause" value="Pausa y reanudación&#xa;según circuit breakers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=13;" vertex="1" parent="1"><mxGeometry x="70" y="660" width="230" height="65" as="geometry"/></mxCell>
+
+        <mxCell id="w-app" value="CASOS DE USO" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CF;swimlaneFillColor=#FFFBF6;strokeColor=#D98A35;fontColor=#57310E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="385" y="140" width="600" height="630" as="geometry"/></mxCell>
+        <mxCell id="w-process" value="CMP-007 · Process Order&#xa;lease · pago · confirmación&#xa;rechazo · fallo · aprobación tardía" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="425" y="220" width="240" height="115" as="geometry"/></mxCell>
+        <mxCell id="w-provision" value="CMP-022 · Provision Event&#xa;lease · lotes de 100&#xa;verificación · ENABLED / FAILED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="705" y="220" width="240" height="115" as="geometry"/></mxCell>
+        <mxCell id="w-expire" value="CMP-008 · Expire Reservations&#xa;GSI3 RESV# · guardas&#xa;libera tickets o marca reverso" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="425" y="385" width="240" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-sweep" value="CMP-023 · Republish Sweep&#xa;GSI4 PENDQ# · umbral 30 s&#xa;duplica de forma segura" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="705" y="385" width="240" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-reversal" value="CMP-024 · Payment Reversal&#xa;GSI3 REVERSAL# · backoff&#xa;10 intentos y revisión manual" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="425" y="540" width="240" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-cleanup" value="CMP-015 · Provisioning Cleanup&#xa;detecta estancados&#xa;republica, falla o purga" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="705" y="540" width="240" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-domain" value="CMP-009 · Dominio compartido · decisiones puras y ordenadas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#57310E;strokeColor=#57310E;fontColor=#FFFFFF;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="425" y="690" width="520" height="45" as="geometry"/></mxCell>
+
+        <mxCell id="w-output" value="PUERTOS Y ADAPTADORES" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;swimlaneFillColor=#F8FCFA;strokeColor=#5A9D72;fontColor=#163E25;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1035" y="140" width="525" height="630" as="geometry"/></mxCell>
+        <mxCell id="w-store" value="DynamoDB Adapter&#xa;Order Lifecycle Store&#xa;Event Catalog · Ticket Inventory&#xa;motivos por item" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1080" y="225" width="200" height="145" as="geometry"/></mxCell>
+        <mxCell id="w-queues" value="SQS Adapters&#xa;consume y publica&#xa;Orders / Provisioning / DLQ" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1315" y="230" width="200" height="135" as="geometry"/></mxCell>
+        <mxCell id="w-payment" value="CMP-013 · Payment Gateway&#xa;authorize / cancel&#xa;idempotencia por paymentAttemptId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1080" y="430" width="200" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-resilience" value="CMP-026 · Resilience&#xa;retry selectivo · circuit breakers&#xa;estado y métricas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=14;" vertex="1" parent="1"><mxGeometry x="1315" y="430" width="200" height="105" as="geometry"/></mxCell>
+        <mxCell id="w-observe" value="CMP-018 · Observabilidad&#xa;correlación HTTP → mensaje → pago&#xa;métricas de negocio y alarmas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="1080" y="600" width="435" height="90" as="geometry"/></mxCell>
+
+        <mxCell id="w-e1" value="mensajes / ticks" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="w-input" target="w-app"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="w-e2" value="puertos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="w-app" target="w-output"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="w-e3" value="reglas" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="w-process" target="w-domain"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="purchase-sequence" name="05 - Secuencia de compra">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="s-header" value="SECUENCIA DE COMPRA · CAMINO EXITOSO" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="1600" height="70" as="geometry"/></mxCell>
+        <mxCell id="s-sub" value="La API reserva y responde sin esperar el pago; el worker completa la compra de forma asíncrona" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=15;fontColor=#486579;" vertex="1" parent="1"><mxGeometry x="30" y="80" width="1100" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="s-client" value="Cliente" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="45" y="130" width="150" height="55" as="geometry"/></mxCell>
+        <mxCell id="s-api" value="Ticketing API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="285" y="130" width="170" height="55" as="geometry"/></mxCell>
+        <mxCell id="s-ddb" value="DynamoDB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#5A9D72;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="560" y="130" width="170" height="55" as="geometry"/></mxCell>
+        <mxCell id="s-sqs" value="SQS Orders" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#5A9D72;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="825" y="130" width="170" height="55" as="geometry"/></mxCell>
+        <mxCell id="s-worker" value="Ticketing Worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1085" y="130" width="180" height="55" as="geometry"/></mxCell>
+        <mxCell id="s-pay" value="Proveedor de pagos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1370" y="130" width="180" height="55" as="geometry"/></mxCell>
+
+        <mxCell id="s-life-client" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#9AAAB4;dashed=1;" vertex="1" parent="1"><mxGeometry x="119" y="185" width="2" height="620" as="geometry"/></mxCell>
+        <mxCell id="s-life-api" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#9AAAB4;dashed=1;" vertex="1" parent="1"><mxGeometry x="369" y="185" width="2" height="620" as="geometry"/></mxCell>
+        <mxCell id="s-life-ddb" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#9AAAB4;dashed=1;" vertex="1" parent="1"><mxGeometry x="644" y="185" width="2" height="620" as="geometry"/></mxCell>
+        <mxCell id="s-life-sqs" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#9AAAB4;dashed=1;" vertex="1" parent="1"><mxGeometry x="909" y="185" width="2" height="620" as="geometry"/></mxCell>
+        <mxCell id="s-life-worker" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#9AAAB4;dashed=1;" vertex="1" parent="1"><mxGeometry x="1174" y="185" width="2" height="620" as="geometry"/></mxCell>
+        <mxCell id="s-life-pay" value="" style="rounded=0;html=1;fillColor=none;strokeColor=#9AAAB4;dashed=1;" vertex="1" parent="1"><mxGeometry x="1459" y="185" width="2" height="620" as="geometry"/></mxCell>
+
+        <mxCell id="s-e1" value="1 · POST compra + Idempotency-Key" style="endArrow=block;endFill=1;html=1;strokeColor=#2D78A8;strokeWidth=2;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="120" y="225" as="sourcePoint"/><mxPoint x="370" y="225" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e2" value="2 · lectura fuerte de idempotencia y Event" style="endArrow=block;endFill=1;html=1;strokeColor=#4E9367;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="370" y="270" as="sourcePoint"/><mxPoint x="645" y="270" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e3" value="3 · TX reserva · N + 4 items" style="endArrow=block;endFill=1;html=1;strokeColor=#4E9367;strokeWidth=3;fontSize=13;fontStyle=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="370" y="325" as="sourcePoint"/><mxPoint x="645" y="325" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-tx1" value="Ticket → RESERVED · Order CREATED · idempotencia · auditoría · bloqueo activo&#xa;condición por Ticket: existe + Event correcto + AVAILABLE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=12;align=left;spacingLeft=10;" vertex="1" parent="1"><mxGeometry x="470" y="340" width="350" height="70" as="geometry"/></mxCell>
+        <mxCell id="s-e4" value="4 · commit atómico" style="endArrow=block;endFill=1;html=1;dashed=1;strokeColor=#4E9367;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="645" y="425" as="sourcePoint"/><mxPoint x="370" y="425" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e5" value="5 · publica MSG-001" style="endArrow=block;endFill=1;html=1;strokeColor=#4E9367;strokeWidth=2;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="370" y="470" as="sourcePoint"/><mxPoint x="910" y="470" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e6" value="6 · marca enqueuedAt" style="endArrow=block;endFill=1;html=1;strokeColor=#4E9367;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="370" y="515" as="sourcePoint"/><mxPoint x="645" y="515" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e7" value="7 · 201 CREATED + orderId" style="endArrow=block;endFill=1;html=1;dashed=1;strokeColor=#2D78A8;strokeWidth=2;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="370" y="560" as="sourcePoint"/><mxPoint x="120" y="560" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e8" value="8 · recibe MSG-001 · at-least-once" style="endArrow=block;endFill=1;html=1;strokeColor=#C8751F;strokeWidth=2;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="910" y="605" as="sourcePoint"/><mxPoint x="1175" y="605" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e9" value="9 · TX inicio de pago · N + 2" style="endArrow=block;endFill=1;html=1;strokeColor=#4E9367;strokeWidth=2;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1175" y="650" as="sourcePoint"/><mxPoint x="645" y="650" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e10" value="10 · authorize(paymentAttemptId)" style="endArrow=block;endFill=1;html=1;strokeColor=#8064A2;strokeWidth=2;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1175" y="695" as="sourcePoint"/><mxPoint x="1460" y="695" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e11" value="11 · APPROVED" style="endArrow=block;endFill=1;html=1;dashed=1;strokeColor=#8064A2;fontSize=13;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1460" y="735" as="sourcePoint"/><mxPoint x="1175" y="735" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-e12" value="12 · TX confirma · N + 3 · Order CONFIRMED + Ticket SOLD" style="endArrow=block;endFill=1;html=1;strokeColor=#4E9367;strokeWidth=3;fontSize=13;fontStyle=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1175" y="785" as="sourcePoint"/><mxPoint x="645" y="785" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="s-legend" value="Tres fronteras transaccionales: reserva · inicio de pago · confirmación" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="465" y="835" width="670" height="40" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="payment-expiration-race" name="06 - Consistencia y concurrencia">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="r-header" value="CONSISTENCIA BAJO CONCURRENCIA · PAGO CONTRA EXPIRACIÓN" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="1600" height="70" as="geometry"/></mxCell>
+        <mxCell id="r-sub" value="La Order en CREATED es el guardián único: la primera transición terminal que confirma su condición gana" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=15;fontColor=#486579;" vertex="1" parent="1"><mxGeometry x="30" y="80" width="1200" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="r-initial" value="ESTADO COMPARTIDO&#xa;Order = CREATED&#xa;expiresAt = T&#xa;Tickets = RESERVED o PENDING_CONFIRMATION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="600" y="135" width="400" height="115" as="geometry"/></mxCell>
+
+        <mxCell id="r-pay-lane" value="RUTA DE PAGO" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CF;swimlaneFillColor=#FFFBF6;strokeColor=#D98A35;fontColor=#57310E;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="90" y="300" width="560" height="340" as="geometry"/></mxCell>
+        <mxCell id="r-pay-start" value="Worker recibe resultado APPROVED&#xa;para paymentAttemptId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;" vertex="1" parent="1"><mxGeometry x="135" y="380" width="210" height="85" as="geometry"/></mxCell>
+        <mxCell id="r-pay-condition" value="TX Confirmar&#xa;Order.status = CREATED&#xa;expiresAt &gt; ahora&#xa;PaymentAttempt coincide" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="405" y="365" width="190" height="120" as="geometry"/></mxCell>
+        <mxCell id="r-pay-note" value="Cada Ticket debe pertenecer a la Order y estar en PENDING_CONFIRMATION" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=13;" vertex="1" parent="1"><mxGeometry x="180" y="525" width="380" height="70" as="geometry"/></mxCell>
+
+        <mxCell id="r-exp-lane" value="RUTA DE EXPIRACIÓN" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="950" y="300" width="560" height="340" as="geometry"/></mxCell>
+        <mxCell id="r-exp-start" value="Proceso periódico encuentra Order&#xa;en GSI3 · RESV# · expiresAt ≤ ahora" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;" vertex="1" parent="1"><mxGeometry x="1255" y="380" width="210" height="85" as="geometry"/></mxCell>
+        <mxCell id="r-exp-condition" value="TX Expirar&#xa;Order.status = CREATED&#xa;expiresAt ≤ ahora&#xa;sin cuarentena" style="rhombus;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1005" y="365" width="190" height="120" as="geometry"/></mxCell>
+        <mxCell id="r-exp-note" value="Libera Ticket y marca reverso si el pago pudo quedar aprobado o desconocido" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=13;" vertex="1" parent="1"><mxGeometry x="1040" y="525" width="380" height="70" as="geometry"/></mxCell>
+
+        <mxCell id="r-guard" value="TRANSACCIÓN CONDICIONAL&#xa;solo un commit puede observar CREATED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;strokeWidth=2;fontColor=#762B24;fontSize=15;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="665" y="370" width="270" height="105" as="geometry"/></mxCell>
+        <mxCell id="r-win" value="PRIMER COMMIT&#xa;realiza la transición" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="690" y="520" width="220" height="70" as="geometry"/></mxCell>
+        <mxCell id="r-lose" value="SEGUNDO INTENTO&#xa;falla condición · relee Order&#xa;y no vuelve a transicionar" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;" vertex="1" parent="1"><mxGeometry x="690" y="625" width="220" height="85" as="geometry"/></mxCell>
+
+        <mxCell id="r-confirmed" value="GANA PAGO&#xa;Order CONFIRMED&#xa;Ticket SOLD&#xa;bloqueo eliminado" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="170" y="715" width="300" height="105" as="geometry"/></mxCell>
+        <mxCell id="r-expired" value="GANA EXPIRACIÓN&#xa;Order EXPIRED&#xa;Ticket AVAILABLE&#xa;reverso si aplica" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1130" y="715" width="300" height="105" as="geometry"/></mxCell>
+        <mxCell id="r-late" value="APROBACIÓN TARDÍA&#xa;nunca reabre la Order&#xa;audita y asegura cancelación idempotente" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="635" y="760" width="330" height="90" as="geometry"/></mxCell>
+
+        <mxCell id="r-e1" value="compiten" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="r-pay-condition" target="r-guard"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="r-e2" value="compiten" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="r-exp-condition" target="r-guard"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="r-e3" value="éxito" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="r-guard" target="r-win"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="r-e4" value="condición ya no cumple" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="935" y="420" as="sourcePoint"/><Array as="points"><mxPoint x="940" y="420"/><mxPoint x="940" y="667"/></Array><mxPoint x="910" y="667" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="r-e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="760" y="590" as="sourcePoint"/><Array as="points"><mxPoint x="760" y="675"/><mxPoint x="320" y="675"/></Array><mxPoint x="320" y="715" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="r-e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="840" y="590" as="sourcePoint"/><Array as="points"><mxPoint x="840" y="690"/><mxPoint x="1280" y="690"/></Array><mxPoint x="1280" y="715" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="r-e7" value="aprobación tardía" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#8064A2;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1130" y="805" as="sourcePoint"/><mxPoint x="965" y="805" as="targetPoint"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="dynamodb-model" name="07 - Modelo DynamoDB">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="d-header" value="MODELO DYNAMODB · PARTICIONES E ÍNDICES DISPERSOS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="1600" height="70" as="geometry"/></mxCell>
+        <mxCell id="d-sub" value="El Ticket es la unidad de competencia; cada Ticket usa una partition key propia y la disponibilidad se distribuye entre shards" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=15;fontColor=#486579;" vertex="1" parent="1"><mxGeometry x="30" y="80" width="1250" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="d-table" value="TABLA ÚNICA · ticketing · PK / SK" style="swimlane;horizontal=1;startSize=40;rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;swimlaneFillColor=#F8FCFA;strokeColor=#5A9D72;fontColor=#163E25;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="35" y="135" width="890" height="600" as="geometry"/></mxCell>
+        <mxCell id="d-event" value="EVENT&#xa;PK = EVENT#evt-123&#xa;SK = #META&#xa;capacity=50.000 · availabilityShards=25" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="75" y="215" width="260" height="115" as="geometry"/></mxCell>
+        <mxCell id="d-ticket1" value="TICKET A&#xa;PK = TICKET#evt-123#VIP-A-0001&#xa;SK = #META&#xa;state = AVAILABLE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="380" y="205" width="230" height="115" as="geometry"/></mxCell>
+        <mxCell id="d-ticket2" value="TICKET B&#xa;PK = TICKET#evt-123#VIP-A-0002&#xa;SK = #META&#xa;state = AVAILABLE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="640" y="205" width="230" height="115" as="geometry"/></mxCell>
+        <mxCell id="d-partition-note" value="Partition keys diferentes → compras de tickets distintos no compiten por un único item Event" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="380" y="345" width="490" height="65" as="geometry"/></mxCell>
+        <mxCell id="d-order" value="ORDER + RESERVATION + PAYMENT ATTEMPT&#xa;PK = ORDER#ord-456 · SK = #META&#xa;status = CREATED · expiresAt · enqueuedAt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#D98A35;fontColor=#57310E;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="75" y="455" width="300" height="110" as="geometry"/></mxCell>
+        <mxCell id="d-idem" value="IDEMPOTENCIA&#xa;PK = IDEM#customer#key&#xa;TTL mínimo 24 h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A9D72;fontColor=#163E25;fontSize=13;" vertex="1" parent="1"><mxGeometry x="405" y="455" width="210" height="95" as="geometry"/></mxCell>
+        <mxCell id="d-lock" value="BLOQUEO ACTIVO&#xa;PK = ACTIVE#customer#event&#xa;una Order activa" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A9D72;fontColor=#163E25;fontSize=13;" vertex="1" parent="1"><mxGeometry x="650" y="455" width="220" height="95" as="geometry"/></mxCell>
+        <mxCell id="d-audit" value="AUDITORÍA APPEND-ONLY&#xa;PK = ORDER#ord-456&#xa;SK = AUDIT#instant#code#suffix" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5A9D72;fontColor=#163E25;fontSize=13;" vertex="1" parent="1"><mxGeometry x="75" y="600" width="300" height="90" as="geometry"/></mxCell>
+        <mxCell id="d-tx" value="RESERVA ATÓMICA · TransactWriteItems&#xa;N Ticket + Order + Idempotencia + Auditoría + Bloqueo = N + 4&#xa;máximo 10 Ticket → 14 items · all-or-nothing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#163E25;strokeColor=#163E25;fontColor=#FFFFFF;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="405" y="595" width="465" height="100" as="geometry"/></mxCell>
+
+        <mxCell id="d-indexes" value="ÍNDICES SECUNDARIOS DISPERSOS" style="swimlane;horizontal=1;startSize=40;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="975" y="135" width="585" height="600" as="geometry"/></mxCell>
+        <mxCell id="d-gsi1" value="GSI1 · CICLO DEL EVENT&#xa;EVENTS#PROVISIONING / ENABLED / FAILED&#xa;listar y detectar aprovisionamientos estancados" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="1020" y="210" width="495" height="90" as="geometry"/></mxCell>
+        <mxCell id="d-gsi2" value="GSI2 · DISPONIBILIDAD&#xa;PK = AVAIL#eventId#shard&#xa;SK = section#row#seat&#xa;solo Ticket AVAILABLE · proyección de ubicación" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=13;fontStyle=1;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="1020" y="330" width="495" height="115" as="geometry"/></mxCell>
+        <mxCell id="d-gsi3" value="GSI3 · ÍNDICE DE TRABAJO&#xa;RESV#8 shards → expiración&#xa;REVERSAL#4 shards → cancelaciones&#xa;REVIEW#QUARANTINE → revisión manual" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#D98A35;fontColor=#57310E;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="1020" y="475" width="495" height="110" as="geometry"/></mxCell>
+        <mxCell id="d-gsi4" value="GSI4 · PENDIENTES DE ENCOLADO&#xa;PK = PENDQ#shard · 8 shards&#xa;SK = createdAtMs#orderId · proyección KEYS_ONLY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=13;align=left;spacingLeft=12;" vertex="1" parent="1"><mxGeometry x="1020" y="615" width="495" height="80" as="geometry"/></mxCell>
+
+        <mxCell id="d-shard" value="availabilityShards = min(32, max(1, ceil(capacity / 2.000)))&#xa;50.000 Ticket → 25 shards · hash(ticketId) mod 25" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="380" y="775" width="840" height="65" as="geometry"/></mxCell>
+        <mxCell id="d-trade" value="Trade-off: más escrituras de índice y lecturas por shard a cambio de evitar particiones calientes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;" vertex="1" parent="1"><mxGeometry x="1245" y="775" width="315" height="65" as="geometry"/></mxCell>
+
+        <mxCell id="d-e1" value="AVAILABLE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="870" y="260" as="sourcePoint"/><Array as="points"><mxPoint x="950" y="260"/><mxPoint x="950" y="390"/></Array><mxPoint x="1020" y="390" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="d-e2" value="RESV#" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D98A35;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="375" y="500" as="sourcePoint"/><Array as="points"><mxPoint x="390" y="500"/><mxPoint x="390" y="715"/><mxPoint x="950" y="715"/><mxPoint x="950" y="530"/></Array><mxPoint x="1020" y="530" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="d-e3" value="PENDQ# hasta enqueuedAt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#C95D50;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="375" y="535" as="sourcePoint"/><Array as="points"><mxPoint x="397" y="535"/><mxPoint x="397" y="750"/><mxPoint x="965" y="750"/><mxPoint x="965" y="655"/></Array><mxPoint x="1020" y="655" as="targetPoint"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="enqueue-recovery" name="08 - Recuperación ante fallos">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="f-header" value="RECUPERACIÓN ANTE FALLO DE PUBLICACIÓN · ADR-026" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="1600" height="70" as="geometry"/></mxCell>
+        <mxCell id="f-sub" value="DynamoDB y SQS no comparten transacción: compensación síncrona, GSI4 y expiración cierran la ventana" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=15;fontColor=#486579;" vertex="1" parent="1"><mxGeometry x="30" y="80" width="1200" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="f-request" value="Solicitud de compra&#xa;Idempotency-Key" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="45" y="220" width="180" height="80" as="geometry"/></mxCell>
+        <mxCell id="f-circuit" value="¿Circuit breaker de&#xa;publicación abierto?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="275" y="200" width="190" height="120" as="geometry"/></mxCell>
+        <mxCell id="f-503-pre" value="503 + Retry-After&#xa;sin reservar" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="285" y="380" width="170" height="70" as="geometry"/></mxCell>
+        <mxCell id="f-reserve" value="TX RESERVA&#xa;Order CREATED · Ticket RESERVED&#xa;Order entra en GSI4 PENDQ#" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="520" y="205" width="255" height="110" as="geometry"/></mxCell>
+        <mxCell id="f-publish" value="PUBLICACIÓN MSG-001&#xa;timeout 500 ms por intento&#xa;máximo 3 intentos + jitter&#xa;presupuesto total 2 s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="835" y="195" width="235" height="130" as="geometry"/></mxCell>
+        <mxCell id="f-delivered" value="¿Publicación&#xa;confirmada?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1130" y="200" width="170" height="120" as="geometry"/></mxCell>
+        <mxCell id="f-success" value="Marca enqueuedAt&#xa;sale de GSI4&#xa;201 · CREATED + orderId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1360" y="205" width="195" height="110" as="geometry"/></mxCell>
+
+        <mxCell id="f-compensate" value="TX COMPENSACIÓN&#xa;Order → FAILED&#xa;Ticket → AVAILABLE&#xa;elimina bloqueo y GSI4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1095" y="405" width="240" height="125" as="geometry"/></mxCell>
+        <mxCell id="f-comp-ok" value="¿Compensación&#xa;confirmada?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;fontColor=#762B24;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1410" y="410" width="150" height="115" as="geometry"/></mxCell>
+        <mxCell id="f-failed-result" value="201 · FAILED + orderId&#xa;PROCESSING_UNAVAILABLE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1370" y="600" width="190" height="75" as="geometry"/></mxCell>
+
+        <mxCell id="f-gap" value="VENTANA NO RESUELTA&#xa;caída entre commit y publicación&#xa;o doble fallo publicación + compensación&#xa;Order sigue CREATED sin enqueuedAt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#C95D50;strokeWidth=2;fontColor=#762B24;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="800" y="575" width="285" height="120" as="geometry"/></mxCell>
+        <mxCell id="f-gsi4" value="GSI4 · PENDQ#0..7&#xa;solo Orders CREATED&#xa;sin enqueuedAt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="470" y="585" width="245" height="100" as="geometry"/></mxCell>
+        <mxCell id="f-sweep" value="CMP-023 · BARRIDO&#xa;cada 10 s · consulta 8 shards&#xa;createdAt &lt; ahora − 30 s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="175" y="580" width="240" height="110" as="geometry"/></mxCell>
+        <mxCell id="f-time" value="¿Quedan al menos&#xa;15 s antes de expiresAt?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#EAF5FF;strokeColor=#2D78A8;fontColor=#12324A;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="215" y="735" width="170" height="105" as="geometry"/></mxCell>
+        <mxCell id="f-republish" value="Republica MSG-001&#xa;y marca enqueuedAt&#xa;duplicado tolerado" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#4E9367;fontColor=#163E25;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="470" y="745" width="230" height="85" as="geometry"/></mxCell>
+        <mxCell id="f-expire" value="No republica&#xa;la expiración cierra la Order&#xa;y libera los Ticket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;" vertex="1" parent="1"><mxGeometry x="45" y="745" width="160" height="85" as="geometry"/></mxCell>
+        <mxCell id="f-last" value="Última garantía: ninguna reserva queda indefinida" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="800" y="770" width="400" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="f-e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="f-request" target="f-circuit"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e2" value="sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C95D50;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-circuit" target="f-503-pre"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e3" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-circuit" target="f-reserve"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e4" value="commit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-reserve" target="f-publish"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D98A35;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="f-publish" target="f-delivered"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e6" value="sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-delivered" target="f-success"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e7" value="no / definitivo" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C95D50;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-delivered" target="f-compensate"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C95D50;endArrow=block;endFill=1;" edge="1" parent="1" source="f-compensate" target="f-comp-ok"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e9" value="sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-comp-ok" target="f-failed-result"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e10" value="no / resultado ambiguo" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C95D50;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1485" y="525" as="sourcePoint"/><Array as="points"><mxPoint x="1485" y="555"/><mxPoint x="940" y="555"/></Array><mxPoint x="940" y="575" as="targetPoint"/></mxGeometry></mxCell>
+        <mxCell id="f-e11" value="persiste en índice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;" edge="1" parent="1" source="f-gap" target="f-gsi4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e12" value="query" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-gsi4" target="f-sweep"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e13" value="evalúa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2D78A8;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-sweep" target="f-time"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e14" value="sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-time" target="f-republish"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f-e15" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=12;" edge="1" parent="1" source="f-time" target="f-expire"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="local-blueprint" name="09 - Entorno local">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p-header" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" value="BLUEPRINT DE DESPLIEGUE · ENTORNO LOCAL" vertex="1">
+          <mxGeometry height="70" width="1600" as="geometry" />
+        </mxCell>
+        <mxCell id="p-subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontColor=#486579;" value="Docker Compose conserva la forma lógica del objetivo: una imagen, dos roles y recursos creados fuera de la aplicación" vertex="1">
+          <mxGeometry height="30" width="1200" x="30" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="p-client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=14;fontStyle=1;" value="Cliente / Postman&#xa;HTTP + JWT" vertex="1">
+          <mxGeometry height="80" width="150" x="30" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="p-compose" parent="1" style="swimlane;horizontal=1;startSize=42;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=16;fontStyle=1;" value="DOCKER COMPOSE" vertex="1">
+          <mxGeometry height="650" width="1315" x="225" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p-idp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="local-idp&#xa;OIDC compatible con JWT&#xa;identidades deterministas" vertex="1">
+          <mxGeometry height="100" width="220" x="270" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="p-payment" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="payment-mock&#xa;proyecto independiente&#xa;autoriza y cancela" vertex="1">
+          <mxGeometry height="100" width="220" x="270" y="365" as="geometry" />
+        </mxCell>
+        <mxCell id="p-tokens" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;" value="load-token-generator&#xa;perfil opcional de carga" vertex="1">
+          <mxGeometry height="75" width="220" x="270" y="545" as="geometry" />
+        </mxCell>
+        <mxCell id="p-load" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;" value="load-test&#xa;&gt; 1.000 clientes" vertex="1">
+          <mxGeometry height="65" width="220" x="270" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="p-apps" parent="1" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CF;swimlaneFillColor=#FFFBF6;strokeColor=#D98A35;fontColor=#57310E;fontSize=15;fontStyle=1;" value="APLICACIÓN · MISMA IMAGEN" vertex="1">
+          <mxGeometry height="410" width="410" x="555" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="p-api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=15;fontStyle=1;" value="ticketing-api&#xa;rol api · WebFlux&#xa;puerto de aplicación + gestión" vertex="1">
+          <mxGeometry height="100" width="320" x="600" y="295" as="geometry" />
+        </mxCell>
+        <mxCell id="p-worker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=15;fontStyle=1;" value="ticketing-worker&#xa;consumidores + procesos periódicos&#xa;sin puerto publicado" vertex="1">
+          <mxGeometry height="105" width="320" x="600" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="p-infra-init" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#163E25;strokeColor=#163E25;fontColor=#FFFFFF;fontSize=14;fontStyle=1;" value="infra-init · una ejecución idempotente&#xa;crea tabla, GSI, TTL, cuatro colas y políticas de redrive" vertex="1">
+          <mxGeometry height="80" width="470" x="1015" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="p-ddb" parent="1" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" value="DynamoDB Local 3.3.1&#xa;tabla ticketing · GSI1 a GSI4" vertex="1">
+          <mxGeometry height="115" width="215" x="1015" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="p-localstack" parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" value="LocalStack 4.14.0&#xa;SQS órdenes + DLQ&#xa;SQS aprovisionamiento + DLQ" vertex="1">
+          <mxGeometry height="125" width="215" x="1270" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="p-health" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;strokeColor=#5A9D72;fontColor=#163E25;fontSize=14;" value="Health checks y dependencias explícitas&#xa;servicios base → infra-init → aplicación → perfil de carga" vertex="1">
+          <mxGeometry height="80" width="470" x="1015" y="535" as="geometry" />
+        </mxCell>
+        <mxCell id="p-config" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;" value="Configuración por variables de entorno · secretos ficticios no versionados · usuario sin privilegios" vertex="1">
+          <mxGeometry height="55" width="930" x="555" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="p-e1" edge="1" parent="1" source="p-client" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2D5A75;" target="p-api" value="HTTP">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="310" y="345" />
+              <mxPoint x="310" y="345" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p-e2" edge="1" parent="1" source="p-idp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#8064A2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="p-api" value="JWT">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p-e3" edge="1" parent="1" source="p-worker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#8064A2;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="p-payment" value="autoriza / cancela">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p-e4" edge="1" parent="1" source="p-infra-init" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="p-ddb" value="crea recursos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p-e5" edge="1" parent="1" source="p-infra-init" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="p-localstack" value="crea colas">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p-e6" edge="1" parent="1" source="p-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="p-ddb" value="transacciones">
+          <mxGeometry relative="1" x="0.0052" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="980" y="345" />
+              <mxPoint x="980" y="397.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p-e7" edge="1" parent="1" source="p-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="p-localstack" value="publica">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1095.06" y="345" />
+              <mxPoint x="1095.06" y="359.94" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p-e8" edge="1" parent="1" source="p-localstack" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#8B501A;" target="p-worker" value="consume">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1250" y="397.47" />
+              <mxPoint x="1250" y="507.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p-e9" edge="1" parent="1" source="p-worker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="p-ddb" value="actualiza">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="529.94" />
+              <mxPoint x="990" y="397.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p-e10" edge="1" parent="1" source="p-idp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;fontColor=#52636E;" target="p-tokens" value="genera tokens">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="250" y="255.00000000000023" />
+              <mxPoint x="250" y="582.4999999999998" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p-e11" edge="1" parent="1" source="p-tokens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;fontColor=#52636E;" target="p-load" value="ejecuta carga">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p-e12" edge="1" parent="1" source="p-load" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;fontColor=#52636E;" target="p-api" value="HTTP concurrente">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="aws-blueprint" name="10 - Objetivo AWS">
+    <mxGraphModel dx="1664" dy="999" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="a-header" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#12324A;strokeColor=#12324A;fontColor=#FFFFFF;fontSize=26;fontStyle=1;align=left;spacingLeft=30;" value="BLUEPRINT DE DESPLIEGUE · OBJETIVO AWS" vertex="1">
+          <mxGeometry height="70" width="1600" as="geometry" />
+        </mxCell>
+        <mxCell id="a-subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontColor=#486579;" value="ECS Fargate con escalado independiente, datos administrados y controles de seguridad en el borde" vertex="1">
+          <mxGeometry height="30" width="1100" x="30" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="a-users" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6E8798;fontColor=#18384E;fontSize=14;fontStyle=1;" value="Clientes y administradores&#xa;HTTPS + JWT" vertex="1">
+          <mxGeometry height="85" width="165" x="25" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="a-cognito" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="Amazon Cognito&#xa;grupos ADMIN / CUSTOMER" vertex="1">
+          <mxGeometry height="85" width="165" x="25" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="a-account" parent="1" style="swimlane;horizontal=1;startSize=42;rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;swimlaneFillColor=#F7FBFF;strokeColor=#4B93C4;fontColor=#12324A;fontSize=16;fontStyle=1;" value="CUENTA AWS POR ENTORNO" vertex="1">
+          <mxGeometry height="675" width="1330" x="230" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="a-edge" parent="1" style="swimlane;horizontal=1;startSize=36;rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;swimlaneFillColor=#FCFAFF;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="BORDE PÚBLICO" vertex="1">
+          <mxGeometry height="300" width="220" x="270" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="a-waf" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="AWS WAF&#xa;reglas gestionadas&#xa;tasa y control de bots" vertex="1">
+          <mxGeometry height="90" width="150" x="305" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="a-alb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="Application Load Balancer&#xa;TLS + health check" vertex="1">
+          <mxGeometry height="75" width="150" x="305" y="385" as="geometry" />
+        </mxCell>
+        <mxCell id="a-vpc" parent="1" style="swimlane;horizontal=1;startSize=38;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CF;swimlaneFillColor=#FFFBF6;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;fontStyle=1;" value="VPC MULTI-AZ · TAREAS EN SUBREDES PRIVADAS" vertex="1">
+          <mxGeometry height="430" width="500" x="540" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="a-api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;fontStyle=1;" value="ECS Fargate · servicio api&#xa;misma imagen, rol api&#xa;autoescalado por CPU y solicitudes" vertex="1">
+          <mxGeometry height="105" width="200" x="585" y="275" as="geometry" />
+        </mxCell>
+        <mxCell id="a-worker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D98A35;fontColor=#57310E;fontSize=14;fontStyle=1;" value="ECS Fargate · servicio worker&#xa;consumidores y procesos periódicos&#xa;escala por backlog y antigüedad" vertex="1">
+          <mxGeometry height="105" width="195" x="810" y="275" as="geometry" />
+        </mxCell>
+        <mxCell id="a-endpoints" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=13;" value="Endpoints privados&#xa;DynamoDB · SQS · ECR · logs · secretos" vertex="1">
+          <mxGeometry height="70" width="420" x="585" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="a-iam" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1DF;strokeColor=#C8751F;fontColor=#57310E;fontSize=13;" value="IAM de mínimo privilegio&#xa;rol de tarea separado por servicio · sin claves estáticas" vertex="1">
+          <mxGeometry height="60" width="420" x="585" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="a-managed" parent="1" style="swimlane;horizontal=1;startSize=36;rounded=1;whiteSpace=wrap;html=1;fillColor=#DFF4E7;swimlaneFillColor=#F8FCFA;strokeColor=#5A9D72;fontColor=#163E25;fontSize=14;fontStyle=1;" value="SERVICIOS ADMINISTRADOS" vertex="1">
+          <mxGeometry height="430" width="425" x="1090" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="a-ddb" parent="1" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" value="Amazon DynamoDB&#xa;on-demand · cifrado · PITR&#xa;tabla única + GSI1 a GSI4" vertex="1">
+          <mxGeometry height="115" width="170" x="1125" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="a-sqs" parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=14;fontStyle=1;" value="Amazon SQS&#xa;órdenes + aprovisionamiento&#xa;cifrado + DLQ" vertex="1">
+          <mxGeometry height="115" width="170" x="1310" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="a-secrets" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=13;" value="Secrets Manager&#xa;credenciales de pagos" vertex="1">
+          <mxGeometry height="75" width="170" x="1125" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="a-observe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=13;" value="CloudWatch + trazas&#xa;logs, métricas y alarmas" vertex="1">
+          <mxGeometry height="75" width="170" x="1310" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="a-ecr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4E9367;fontColor=#163E25;fontSize=13;" value="ECR&#xa;imagen ticketing" vertex="1">
+          <mxGeometry height="55" width="355" x="1125" y="535" as="geometry" />
+        </mxCell>
+        <mxCell id="a-payment" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2EDFA;strokeColor=#8064A2;fontColor=#46315E;fontSize=14;fontStyle=1;" value="Proveedor de pagos&#xa;externo a la VPC&#xa;Payment Mock solo en no productivo" vertex="1">
+          <mxGeometry height="80" width="500" x="540" y="675" as="geometry" />
+        </mxCell>
+        <mxCell id="a-governance" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF1F3;strokeColor=#7B8B95;fontColor=#2D414E;fontSize=13;" value="Gobernanza por entorno · etiquetado · presupuestos · estado de IaC separado · sin datos productivos en ambientes inferiores" vertex="1">
+          <mxGeometry height="80" width="425" x="1090" y="675" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e1" edge="1" parent="1" source="a-users" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#8064A2;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="a-waf" value="HTTPS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e2" edge="1" parent="1" source="a-waf" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#8064A2;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="a-alb" value="filtra">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e3" edge="1" parent="1" source="a-alb" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2D78A8;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2D5A75;" target="a-api" value="balancea">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e4" edge="1" parent="1" source="a-cognito" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#8064A2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="a-api" value="emite JWT">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e5" edge="1" parent="1" source="a-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="a-ddb" value="transacciones">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e6" edge="1" parent="1" source="a-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="a-sqs" value="publica">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e7" edge="1" parent="1" source="a-sqs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#C8751F;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#8B501A;" target="a-worker" value="consume">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e8" edge="1" parent="1" source="a-worker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4E9367;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#2C6942;" target="a-ddb" value="actualiza">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e9" edge="1" parent="1" source="a-worker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#8064A2;strokeWidth=2;endArrow=block;endFill=1;fontSize=12;fontColor=#5D4676;" target="a-payment" value="autoriza / cancela">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1010" y="327.47" />
+              <mxPoint x="1010" y="527.47" />
+              <mxPoint x="790" y="527.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a-e10" edge="1" parent="1" source="a-worker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#4E9367;endArrow=block;endFill=1;fontSize=11;fontColor=#2C6942;" target="a-secrets" value="lee secretos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e11" edge="1" parent="1" source="a-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;fontColor=#52636E;" target="a-observe" value="telemetría">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-e12" edge="1" parent="1" source="a-worker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#7B8B95;endArrow=block;endFill=1;fontSize=11;fontColor=#52636E;" target="a-observe" value="telemetría">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
