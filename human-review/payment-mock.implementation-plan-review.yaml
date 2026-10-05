@@ -1,0 +1,370 @@
+artifact: payment-mock-implementation-plan-review
+schema_version: 1.0
+plan: implementation/payment-mock.implementation-plan.v1.md
+
+source:
+  artifact: implementation/payment-mock.implementation-plan.v1.md
+  version: 1
+  contract: architecture/payment-mock.openapi.v1.yaml   # 1.0.0, sha256 5360ffee...
+  code_repo_revision: 6807639 (main, clean; payment-mock/ absent)
+  spec_repo_revision: bd9121e
+
+review:
+  status: APPROVED
+  reviewed_by: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+items:
+
+  - id: PLAN
+    type: PLAN
+    priority: HIGH
+    title: "Plan de incrementos y alcance del Payment Mock"
+    proposal: >
+      Seis incrementos en CODE_REPO/payment-mock (proyecto independiente, JDK 25):
+      PM-INC-001 build independiente, bootstrap, health (API-111), filtro X-Api-Key
+      y puertas de prueba (contrato, BlockHound, ArchUnit, cobertura informativa);
+      PM-INC-002 estado en memoria, reglas, defaults y API de control (API-103 a
+      API-107, API-110); PM-INC-003 autorización determinista e idempotente e
+      inspección (API-101, API-108); PM-INC-004 cancelación, cancelación
+      anticipada, latencia y carreras authorize/cancel/reset (API-102, API-109,
+      LATENCY); PM-INC-005 fallos transitorios y definitivos y barrido completo
+      del contrato; PM-INC-006 cierre y handoff a Platform y QA. Seis spikes
+      (PM-SPK-001 a PM-SPK-006). La latencia se adelanta a PM-INC-004 respecto
+      del orden recomendado porque la cancelación en tránsito no puede probarse
+      sin ella. Fuera de alcance: ticketing, Dockerfile, Compose, infraestructura,
+      CI/CD, README, colección, E2E y carga.
+    decision: CONFIRMED
+    answer: >
+      Se aprueba el plan de seis incrementos, su orden (latencia adelantada a PM-INC-004), los seis spikes y el alcance tal como se proponen.
+
+  - id: PM-IV-001
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué herramienta de build usa payment-mock? (ENV-001 fijó Maven solo para ticketing)"
+    options:
+      - "(a) Maven Wrapper propio en payment-mock/ con Maven 3.9.16, proyecto de un solo módulo con parent spring-boot-starter-parent 4.1.1, release 25 y Maven Enforcer (Java [25,26), Maven [3.9.16,3.9.17)); sin herencia ni agregación con ticketing; jar final payment-mock.jar"
+      - "(b) Gradle Wrapper propio (Kotlin DSL) con Spring Boot 4.1.1 y toolchain Java 25"
+      - "(c) Otra combinación indicada por el humano"
+    recommended: >
+      (a). Reutiliza una toolchain ya verificada en este equipo (Maven 3.9.16 y
+      Spring Boot 4.1.1 sobre Zulu 25) sin compartir ningún archivo con ticketing:
+      el wrapper se genera de nuevo dentro de payment-mock/ con maven-wrapper-plugin
+      3.3.4. Sujeto a PM-SPK-001 y PM-SPK-002.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Maven Wrapper propio en payment-mock/ con Maven 3.9.16, un solo módulo con parent Spring Boot 4.1.1, release 25 y Enforcer; sin herencia ni agregación con ticketing.
+    impact: [PM-INC-001, PM-SPK-001, PM-SPK-002, ADR-030, ADR-034, ADR-036, TC-001, TC-002]
+
+  - id: PM-IV-002
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué librerías de prueba y calidad usa payment-mock?"
+    options:
+      - "(a) JUnit Jupiter y Mockito gestionados por el BOM de Spring Boot 4.1.1, reactor-test, AssertJ, soporte de pruebas de WebFlux (WebTestClient), BlockHound 1.0.17.RELEASE, swagger-request-validator-core 2.46.1, ArchUnit 1.5.0 (archunit-junit6) y JaCoCo 0.8.15 solo como informe, sin puerta"
+      - "(b) Lo mismo sin ArchUnit (la independencia se comprueba solo con dependency:tree) y sin JaCoCo"
+      - "(c) Otra combinación indicada por el humano"
+    recommended: >
+      (a). Mismas versiones ya verificadas en este equipo, declaradas de forma
+      independiente en el POM del mock. ArchUnit hace verificable en el build la
+      regla de frontera 7 (ninguna dependencia de com.nequi.ticketing) y la
+      ausencia de APIs bloqueantes; JaCoCo da la cobertura informativa que exige
+      el contrato del agente sin puerta (ADR-038). Si BOM gestiona JUnit 6, se
+      acepta como TC-014 por analogía con IV-002 de ticketing.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). JUnit y Mockito del BOM, reactor-test, AssertJ, WebTestClient, BlockHound 1.0.17.RELEASE, swagger-request-validator-core 2.46.1, ArchUnit 1.5.0 y JaCoCo 0.8.15 solo como informe.
+    impact: [PM-INC-001, PM-SPK-003, ADR-034, ADR-038, TC-014, NFR-003]
+
+  - id: PM-IV-003
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Cómo acceden las pruebas de payment-mock a payment-mock.openapi.v1.yaml, que reside en SPEC_REPO?"
+    options:
+      - "(a) Copia literal propia en payment-mock/src/test/resources/contracts con su SHA-256 registrado y una prueba que la compara con el original cuando SPEC_REPO está disponible (independiente de la copia de ticketing)"
+      - "(b) Ruta externa configurable; el build depende de la presencia de SPEC_REPO"
+      - "(c) Copia literal sin prueba de comparación"
+    recommended: >
+      (a). Mismo patrón aprobado para ticketing (IV-003) pero con una copia propia:
+      no se comparte el archivo de ticketing (ADR-034). Hash actual del original:
+      5360ffeed2334612b1b493ebef1224910218abd28b520f03bd97a2a7eec05124.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Copia literal propia en payment-mock/src/test/resources/contracts con su SHA-256 y prueba de comparación con el original cuando SPEC_REPO está disponible.
+    impact: [PM-INC-001, API-101, API-102, API-103, API-104, API-105, API-106, API-107, API-108, API-109, API-110, API-111]
+
+  - id: PM-IV-004
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué configuración de ejecución expone el mock (puerto, variables, arranque sin API key, gestión y health)?"
+    options:
+      - "(a) Puerto 8090 por defecto sobrescribible con SERVER_PORT; API key en la variable PAYMENT_MOCK_API_KEY, obligatoria: si falta o está vacía el proceso no arranca; sin Spring Boot Actuator ni puerto de gestión; GET /health responde 200 sin cuerpo (el contrato no declara contenido); CORS deshabilitado; sin logs por solicitud (solo arranque y errores internos, sin cabeceras, cuerpos, API key ni customerRef)"
+      - "(b) Igual que (a) pero, sin API key, arranca y rechaza todo con 401 salvo /health"
+      - "(c) Igual que (a) pero /health responde 200 con {\"status\":\"UP\"}"
+      - "(d) Otra configuración indicada por el humano (p. ej. otro nombre de variable)"
+    recommended: >
+      (a). El fallo temprano evita un mock accidentalmente desprotegido o
+      inutilizable; ninguna operación de gestión se expone (ADR-032: solo la salud
+      es externa); /health sin cuerpo se ajusta literalmente al contrato. El
+      nombre de la variable lo consume Platform en Compose y en AWS no productivo.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Puerto 8090 sobrescribible con SERVER_PORT; PAYMENT_MOCK_API_KEY obligatoria (sin ella no arranca); sin Actuator; /health 200 sin cuerpo; sin CORS; sin logs por solicitud. Nota para Platform: el puerto 8090 del host está ocupado en el equipo local.
+    impact: [PM-INC-001, API-111, ADR-032, ADR-036, ADR-037, Platform]
+
+  - id: PM-IV-005
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué status y Error.code se devuelven en cada situación de error, incluidas las que el contrato no declara?"
+    options:
+      - "(a) 400 VALIDATION_ERROR para todo lo detectable en la propia solicitud: JSON mal formado, esquema, formatos, propiedades adicionales, Idempotency-Key ausente, > 80 o distinta de paymentAttemptId, Content-Type no JSON en operaciones con cuerpo (en lugar de 415), cuerpo superior al límite del códec (en lugar de 413) y paymentAttemptId de ruta > 80 en API-102/108/109 (400 no declarado en esas operaciones); 401 UNAUTHENTICATED evaluado antes del enrutado en toda ruta salvo /health (también en rutas inexistentes); 422 para conflictos dependientes del estado (IDEMPOTENCY_KEY_REUSED, PM-IV-010) y para el error definitivo simulado (PM-IV-009); 404 de API-108/109 sin cuerpo (el contrato no declara contenido); 404/405/406 del framework con cuerpo Error (NOT_FOUND, METHOD_NOT_ALLOWED, NOT_ACCEPTABLE); 500 INTERNAL_ERROR solo ante error inesperado. message opcional, genérico, con nombres de campo y sin valores de entrada. No se valida el patrón <orderId>-<n> de paymentAttemptId (el contrato no declara pattern)"
+      - "(b) Igual que (a) pero Idempotency-Key distinta de paymentAttemptId → 422"
+      - "(c) Igual que (a) pero sin validar la longitud de paymentAttemptId en la ruta de API-102/108/109 (nunca 400 en esas operaciones)"
+      - "(d) Otra asignación indicada por el humano"
+    recommended: >
+      (a). Separa con un criterio verificable lo detectable en la solicitud (400)
+      de lo que depende del estado (422). El consumidor trata cualquier 4xx como
+      error de contrato definitivo, por lo que la elección no cambia su flujo; los
+      status no declarados (400 en rutas de API-102/108/109 y 404/405/406) solo los
+      alcanza un cliente que no cumple el contrato.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Asignación 400 / 401 / 422 / 404 / 500 tal como se propone.
+    impact: [PM-INC-001, PM-INC-003, PM-INC-005, API-101, API-102, API-104, API-107, API-108, API-109, ADR-035]
+
+  - id: PM-IV-006
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Cómo se identifican y ordenan las reglas y qué regla gana cuando varias de la misma categoría aplican (incluido ticketId con varios Ticket con regla)?"
+    options:
+      - "(a) ruleId = rule-<n> con contador monotónico del proceso que no se reinicia con reset (no se reutilizan identificadores); dentro de una categoría gana la regla creada más recientemente; GET /control/rules lista por categoría (orderId, ticketId, customerRef, eventId) y dentro de cada una de la más reciente a la más antigua (orden efectivo); se permiten reglas con el mismo matcher y valor"
+      - "(b) Igual que (a) pero gana la regla más antigua y el listado va de la más antigua a la más reciente"
+      - "(c) Igual que (a) pero una regla con la misma categoría y valor que otra existente la sustituye (conserva un solo ruleId vigente por matcher); entre Ticket distintos gana la más reciente"
+      - "(d) Otra política indicada por el humano"
+    recommended: >
+      (a). "La última configuración aplica" permite reconfigurar un escenario sin
+      borrar antes; el orden del listado coincide con el orden de evaluación, como
+      pide el contrato ("in precedence order"); identificadores que no se
+      reutilizan evitan borrar por error una regla nueva con un ruleId antiguo
+      tras un reset.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). ruleId rule-<n> monotónico sin reinicio; gana la regla más reciente; listado por categoría y de la más reciente a la más antigua.
+    impact: [PM-INC-002, PM-INC-003, API-103, API-104, API-106, AV-004]
+
+  - id: PM-IV-007
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué campos de behaviour son obligatorios o admitidos por tipo y qué reasonCode se usan y admiten?"
+    options:
+      - "(a) Estricto por tipo: APPROVE sin otros campos; DECLINE con reasonCode opcional; DEFINITIVE_ERROR sin otros campos; TRANSIENT_THEN_OUTCOME con transientFailures y finalOutcome obligatorios y reasonCode solo si finalOutcome = DECLINED; LATENCY con addedLatencyMs obligatorio, finalOutcome opcional (PM-IV-013) y reasonCode solo si finalOutcome = DECLINED; cualquier otro campo → 400. reasonCode de regla ∈ {CARD_DECLINED, INSUFFICIENT_FUNDS, RULE_DECLINED} (PERCENTAGE_DECLINED y ATTEMPT_CANCELLED reservados al mock); sin reasonCode una regla de rechazo produce RULE_DECLINED; defaultOutcome = DECLINED produce RULE_DECLINED; el porcentaje produce PERCENTAGE_DECLINED; la regla se devuelve y lista tal como se creó (sin inyectar valores por defecto)"
+      - "(b) Permisivo: se aceptan todos los campos en cualquier tipo y se ignoran los no aplicables"
+      - "(c) Igual que (a) pero defaultOutcome = DECLINED produce CARD_DECLINED"
+      - "(d) Otra política indicada por el humano"
+    recommended: >
+      (a). behaviour.reasonCode es texto libre en OutcomeRuleInput pero
+      AuthorizationResult.reasonCode es un enumerado: sin restringirlo, una regla
+      podría producir respuestas que violan el contrato. Ignorar campos en silencio
+      ocultaría errores de configuración en la colección de QA.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Validación estricta por tipo; reasonCode de regla en {CARD_DECLINED, INSUFFICIENT_FUNDS, RULE_DECLINED}, RULE_DECLINED por defecto, PERCENTAGE_DECLINED para el porcentaje.
+    impact: [PM-INC-002, PM-INC-003, PM-INC-005, API-101, API-104, API-107]
+
+  - id: PM-IV-008
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué algoritmo estable implementa declinePercentage y qué semántica tiene PUT /control/defaults?"
+    options:
+      - "(a) cubo = (8 primeros bytes de SHA-256 de paymentAttemptId en UTF-8, como entero sin signo big-endian) módulo 100; rechaza (DECLINED/PERCENTAGE_DECLINED) si cubo < declinePercentage, así 0 nunca rechaza y 100 siempre; solo se aplica si ninguna regla coincide; si no rechaza se usa defaultOutcome. PUT reemplaza el objeto completo: sin declinePercentage vale 0; la respuesta incluye siempre declinePercentage. Estado inicial y tras reset: APPROVED y 0"
+      - "(b) Igual que (a) con CRC32 en lugar de SHA-256"
+      - "(c) Igual que (a) pero PUT sin declinePercentage conserva el valor anterior"
+      - "(d) Otro algoritmo indicado por el humano"
+    recommended: >
+      (a). SHA-256 está en la biblioteca estándar, es independiente de la
+      plataforma y de String.hashCode(), y el sesgo del módulo sobre 64 bits es
+      despreciable; QA puede predecir cada resultado. PUT con semántica de
+      reemplazo es lo esperable en HTTP y evita estados heredados entre escenarios.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Cubo SHA-256 (8 bytes sin signo big-endian) módulo 100; PUT /control/defaults reemplaza el objeto completo; estado inicial APPROVED y 0.
+    impact: [PM-INC-002, PM-INC-003, API-101, API-107, ADR-038, NFR-001, AC-029]
+
+  - id: PM-IV-009
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué status y cuerpo producen DEFINITIVE_ERROR y cada fallo transitorio, y cómo progresa TRANSIENT_THEN_OUTCOME?"
+    options:
+      - "(a) DEFINITIVE_ERROR → 422 con Error code SIMULATED_DEFINITIVE_ERROR en cada invocación, sin almacenar resultado; transitorio → 503 con Error code SIMULATED_TRANSIENT_FAILURE; el progreso se cuenta por (paymentAttemptId, ruleId): las invocaciones k ≤ N responden 503 y la N+1 decide y almacena finalOutcome (N = 0 decide en la primera); al sustituir la regla el progreso empieza de cero para la nueva; con una cancelación registrada y sin resultado, las autorizaciones dejan de consumir fallos y resuelven DECLINED/ATTEMPT_CANCELLED; ambos cuentan en invocations"
+      - "(b) Igual que (a) pero DEFINITIVE_ERROR → 500 permanente (el consumidor lo trataría como transitorio: reintentos, cinco recepciones y FAILED con reverso)"
+      - "(c) Igual que (a) pero transitorio → 500"
+      - "(d) Otra política indicada por el humano"
+    recommended: >
+      (a). Con 422 el consumidor (que trata todo 4xx como definitivo) cierra la
+      Order en FAILED sin reverso a la primera, lo que diferencia observablemente
+      "error definitivo" de "fallos transitorios sostenidos", que ya se obtienen
+      con TRANSIENT_THEN_OUTCOME y N alto. 503 es el status canónico de
+      indisponibilidad transitoria. La prioridad de la cancelación sobre los fallos
+      restantes aplica BR-034 ("rechaza cualquier cobro posterior").
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). DEFINITIVE_ERROR → 422 SIMULATED_DEFINITIVE_ERROR; transitorio → 503 SIMULATED_TRANSIENT_FAILURE; progreso por (paymentAttemptId, ruleId); la cancelación corta los fallos restantes y resuelve ATTEMPT_CANCELLED.
+    impact: [PM-INC-005, API-101, API-108, AC-021, ALT-004, ERR-008, ADR-035, CMP-013]
+
+  - id: PM-IV-010
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Cómo se trata una autorización que reutiliza un paymentAttemptId con otra carga útil, una repetición concurrente con una decisión en curso, y qué llamadas cuentan en invocations?"
+    options:
+      - "(a) La carga útil del intento (orderId, eventId, customerRef, ticketIds) queda fijada por la primera invocación autenticada y válida, aunque haya recibido 5xx o 422; otra carga útil → 422 IDEMPOTENCY_KEY_REUSED sin modificar nada (ticketIds se compara como conjunto); una repetición mientras la decisión está en curso (latencia) se une a esa misma decisión y responde con su resultado (replayed = true) sin volver a evaluar reglas ni añadir latencia; invocations cuenta toda llamada autenticada y válida (incluidas 5xx simuladas, error definitivo, repeticiones y 422 por carga útil distinta) y excluye 400 y 401"
+      - "(b) Igual que (a) pero la carga útil distinta se ignora y se devuelve la repetición normal (200)"
+      - "(c) Igual que (a) pero una repetición concurrente con una decisión en curso evalúa de nuevo de forma independiente"
+      - "(d) Otra política indicada por el humano"
+    recommended: >
+      (a). Un intento lógico, una decisión y un efecto por paymentAttemptId incluso
+      con concurrencia (§3.3 del contrato del agente); 422 es el status de error de
+      contrato declarado para conflictos y coincide con la semántica de
+      IDEMPOTENCY_KEY_REUSED de ticketing (ADR-027), sin compartir código. El
+      consumidor repite siempre con la misma carga útil, así que nunca recibe 422
+      por este motivo.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Carga útil fijada por la primera invocación válida; carga distinta → 422 IDEMPOTENCY_KEY_REUSED; repeticiones concurrentes se unen a la decisión en curso; invocations cuenta llamadas autenticadas y válidas.
+    impact: [PM-INC-003, PM-INC-004, API-101, API-108, ADR-027, FR-017, AC-023, AC-024]
+
+  - id: PM-IV-011
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Qué significan exactamente replayed y cancelled y cómo se representan los campos opcionales sin valor?"
+    options:
+      - "(a) replayed = false solo para la llamada que comprometió la decisión (incluida la primera autorización tras una cancelación anticipada, que almacena ATTEMPT_CANCELLED) y true para las demás; en API-102 replayed = false solo para la cancelación que fijó el estado. cancelled literal según el contrato: true si la cancelación se registró después de que existiera el resultado (casos REVERSED y VOIDED), false en ATTEMPT_CANCELLED. replayed y cancelled siempre presentes en las respuestas de pago. Opcionales sin valor se omiten en lugar de null: reasonCode en APPROVED y result en AuthorizationRecord sin resultado. En AuthorizationRecord.result se omite replayed y cancelled refleja el estado actual"
+      - "(b) Igual que (a) pero cancelled = true siempre que exista una cancelación para el intento, también en ATTEMPT_CANCELLED"
+      - "(c) Igual que (a) pero se emite null explícito en los opcionales sin valor"
+      - "(d) Otra semántica indicada por el humano"
+    recommended: >
+      (a). Se ciñe a la descripción del contrato ("cancelled after this result");
+      ATTEMPT_CANCELLED ya comunica la cancelación previa. Omitir en lugar de null
+      evita una ambigüedad de OpenAPI 3.0.3 (nullable junto a allOf o enum sin null
+      puede no validar), y ambos campos no son requeridos.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). replayed y cancelled según el contrato literal; opcionales sin valor se omiten.
+    impact: [PM-INC-003, PM-INC-004, API-101, API-102, API-108]
+
+  - id: PM-IV-012
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Cómo se genera providerReference?"
+    options:
+      - "(a) pm- seguido de los 24 primeros caracteres hexadecimales del SHA-256 de paymentAttemptId; se emite en todo AuthorizationResult (APPROVED, DECLINED y ATTEMPT_CANCELLED) y es idéntico en todas las repeticiones y en la inspección"
+      - "(b) Secuencia del proceso (pm-000001...) asignada al decidir, que se reinicia con reset"
+      - "(c) UUID aleatorio asignado al decidir y almacenado"
+    recommended: >
+      (a). Determinista sin estado adicional, estable en repeticiones, sin
+      aleatoriedad; el consumidor exige providerReference no vacío también en
+      DECLINED (INC-007), y el contrato lo declara requerido siempre.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). providerReference = pm- más los 24 primeros caracteres hexadecimales del SHA-256 de paymentAttemptId, en todo AuthorizationResult.
+    impact: [PM-INC-003, API-101, API-108, CMP-013]
+
+  - id: PM-IV-013
+    type: IMPLEMENTATION_VALIDATION
+    priority: HIGH
+    question: "¿Cuál es el resultado y la semántica temporal de LATENCY, y qué ocurre si el llamador se desconecta durante la espera?"
+    options:
+      - "(a) La regla aplicable se toma como instantánea al llegar la primera invocación; tras addedLatencyMs se compromete atómicamente la decisión: si entretanto se registró una cancelación → DECLINED/ATTEMPT_CANCELLED, si no → finalOutcome (con reasonCode o el por defecto de PM-IV-007) o, si no hay finalOutcome, el resultado del porcentaje y del default; la decisión está desacoplada de la conexión: si el llamador corta (timeout de 3 s de ticketing o su plazo) la decisión se compromete igualmente, como un proveedor real con un cobro en tránsito; las repeticiones durante la espera se unen a la decisión (PM-IV-010) y las posteriores al resultado responden de inmediato"
+      - "(b) Igual que (a) pero finalOutcome es obligatorio en LATENCY (400 si falta)"
+      - "(c) Igual que (a) pero la desconexión del llamador cancela la decisión: el intento queda sin resultado y la siguiente invocación empieza de nuevo con su latencia"
+      - "(d) Otra semántica indicada por el humano"
+    recommended: >
+      (a). Decidir al final de la espera es lo que hace válida la regla de ADR-030
+      ("una autorización en tránsito que termina después de la cancelación también
+      resuelve como DECLINED"). El desacoplamiento reproduce el resultado
+      desconocido que motiva FG-003: la cancelación del proceso de reversos de
+      ticketing puede llegar antes o después del cobro en tránsito y ambos casos
+      quedan demostrables. Sin finalOutcome, componer con el porcentaje permite
+      añadir latencia al modo de carga sin redefinir resultados.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Regla tomada al llegar, decisión al terminar la espera (gana una cancelación intermedia), desacoplada de la conexión del llamador; sin finalOutcome se usan porcentaje y default.
+    impact: [PM-INC-004, PM-SPK-004, API-101, FG-003, BR-034, ADR-030, ADR-035]
+
+  - id: PM-IV-014
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "¿Qué efecto tiene POST /control/reset sobre operaciones en vuelo?"
+    options:
+      - "(a) Todo el estado (reglas, defaults, intentos, cancelaciones, progreso) vive en una generación que reset sustituye atómicamente por una nueva; una operación iniciada antes termina contra la generación antigua y responde a su llamador con ese resultado, pero nada de ella es visible después del reset; las operaciones iniciadas después solo ven la nueva generación"
+      - "(b) reset espera a que terminen las operaciones en vuelo antes de responder 204"
+      - "(c) Las operaciones en vuelo se abortan con 503 al producirse el reset"
+    recommended: >
+      (a). Única opción sin espera ni bloqueo y sin mezcla visible de estados; una
+      decisión con latencia en curso no puede reaparecer en el estado nuevo.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Reset por sustitución atómica de generación; lo que está en vuelo termina contra la generación antigua y no es visible después.
+    impact: [PM-INC-002, PM-INC-004, PM-SPK-005, API-110]
+
+  - id: PM-IV-015
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "API-102 declara 500 y 503 (SimulatedFailure), pero las reglas solo tienen datos de la autorización. ¿Se simulan fallos en la cancelación y cómo?"
+    options:
+      - "(a) No se simulan: las reglas no aplican a API-102; 500 solo ante error interno inesperado; la indisponibilidad de cancelación se demuestra deteniendo el contenedor (escenario de resiliencia 2 de ADR-038)"
+      - "(b) Las reglas aplican también a la cancelación usando la carga útil fijada del intento (si existe): DEFINITIVE_ERROR y la fase transitoria responden también en API-102 con su propio progreso; una cancelación de intento inexistente nunca falla"
+      - "(c) Devolver al Architect para añadir al contrato un selector de operación en la regla (OpenAPI 1.1.0)"
+    recommended: >
+      (a). No inventa un mecanismo que el contrato no define; el proceso de
+      reversos de ticketing ya trata como no confirmada cualquier respuesta no 200
+      (IV-016 de ticketing) y su reintento se prueba en ticketing. Si se requiere
+      demostrar fallos de cancelación sin detener el contenedor, la opción es (c).
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). No se simulan fallos en API-102; la indisponibilidad de la cancelación se demuestra deteniendo el contenedor.
+    impact: [PM-INC-004, PM-INC-005, API-102, FR-023, ADR-025, ADR-038]
+
+  - id: PM-IV-016
+    type: IMPLEMENTATION_VALIDATION
+    priority: MEDIUM
+    question: "OutcomeRule = allOf(OutcomeRuleInput con additionalProperties: false, {ruleId}). Según la semántica de JSON Schema, additionalProperties de una rama no ve las propiedades de la otra, así que todo objeto con ruleId violaría la primera rama y el esquema sería insatisfacible para un validador estricto. ¿Cómo se procede?"
+    options:
+      - "(a) Responder en API-103/104 con ruleId, match y behaviour (intención evidente del contrato); si PM-SPK-003 confirma el rechazo, validar esas respuestas con combinadores resueltos o con una tolerancia limitada exactamente a esa violación en esas dos operaciones, documentada en los informes; notificar al Architect para corregir el esquema en una versión 1.0.1"
+      - "(b) Bloquear PM-INC-002 hasta que el Architect publique el OpenAPI corregido"
+      - "(c) Responder sin ruleId (incumple el campo requerido; descartado)"
+    recommended: >
+      (a), condicionada a PM-SPK-003. Si el validador acepta el esquema tal cual
+      (p. ej. porque resuelve allOf), la pregunta queda sin efecto y solo se
+      informa al Architect del riesgo para otros validadores.
+    blocking: true
+    decision: CONFIRMED
+    answer: >
+      (a). Responder con ruleId; si PM-SPK-003 confirma el rechazo, tolerancia limitada a esa violación en API-103/104, documentada; notificar al Architect para la versión 1.0.1 del contrato.
+    impact: [PM-INC-002, PM-SPK-003, API-103, API-104, payment-mock.openapi.v1.yaml]
+
+gate:
+  blocking_items: [PLAN, PM-IV-001, PM-IV-002, PM-IV-003, PM-IV-004, PM-IV-005, PM-IV-006, PM-IV-007, PM-IV-008, PM-IV-009, PM-IV-010, PM-IV-011, PM-IV-012, PM-IV-013, PM-IV-014, PM-IV-015, PM-IV-016]
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
