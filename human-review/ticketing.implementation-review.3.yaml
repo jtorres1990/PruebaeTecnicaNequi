@@ -1,0 +1,73 @@
+artifact: implementation-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/increments/INC-005.report.md
+  section: "6.2 Interpretaciones y preguntas para revisión humana"
+  increment: INC-005
+
+review:
+  status: APPROVED
+  reviewer: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: IV-017
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "ADR-039 y ADR-024 piden reintentar los items no procesados de las escrituras por lotes (AP-002, AP-027) con \"backoff acotado\", y AP-025 hace lecturas por lotes consistentes, pero ninguna fuente cuantifica el número de reintentos, su backoff ni el paralelismo de la lectura por lotes (no están en la tabla de IV-004). ¿Se aprueban los valores implementados como guardas configurables?"
+    options:
+      - "(a) Aprobar: hasta 5 reintentos de items o claves no procesados por solicitud, backoff exponencial de 50 ms de base, x2, máximo 1 s, jitter del 50 %; si persisten, error técnico (el mensaje se reintenta según ADR-029); lectura por lotes consistente con hasta 4 solicitudes de 100 claves en paralelo, igual que las escrituras por lotes de ADR-024"
+      - "(b) Aprobar con otros valores indicados por el humano"
+      - "(c) Devolver al Architect"
+    recommended: >
+      (a). Son propiedades configurables de DynamoDbAdapterSettings; ninguna
+      contradice un valor aprobado y el paralelismo de lectura reutiliza el de
+      escritura aprobado en ADR-024. El enlace a propiedades se hace en INC-010.
+    decision: CONFIRMED
+    answer: >
+      (a). Se aprueban los valores implementados como guardas configurables
+      de DynamoDbAdapterSettings; el enlace a propiedades se hace en INC-010.
+    impact:
+      - INC-005
+      - INC-010
+      - ADR-024
+      - ADR-039
+      - AP-002
+      - AP-025
+      - AP-027
+
+  - id: IV-018
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "ticketing.data-model.v2.md §3 lista para el item de auditoría de Event los atributos entityType, eventId, cause, capacity, availableCount, complimentaryCount, actorType, actorId, correlationId y occurredAt, sin transitionIds, mientras que ADR-031 dice que el registro contiene las transiciones ST-* aplicadas y el dominio las construye (ST-011, ST-012, ST-013). El adaptador sigue el modelo de datos y no persiste transitionIds en la auditoría de Event (la transición queda identificada por el código del catálogo en la clave de ordenación). ¿Se mantiene así?"
+    options:
+      - "(a) Mantener: la auditoría de Event no persiste transitionIds (modelo de datos v2 literal); el código EVENT_PROVISIONING_REQUESTED / EVENT_ENABLED / EVENT_PROVISIONING_FAILED identifica la transición"
+      - "(b) Añadir transitionIds también al item de auditoría de Event (cambio del modelo de datos, mismo tratamiento que IV-013)"
+    recommended: >
+      (a). Es la lectura literal del modelo de datos, autoritativo para los
+      atributos; cada código de auditoría de Event corresponde a una única
+      transición, por lo que no se pierde evidencia. No bloquea ningún
+      incremento.
+    decision: CONFIRMED
+    answer: >
+      (a). La auditoría de Event no persiste transitionIds; el código del
+      catálogo en la clave de ordenación identifica la transición.
+    impact:
+      - INC-005
+      - ADR-031
+      - ticketing.data-model.v2.md §3
+
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
