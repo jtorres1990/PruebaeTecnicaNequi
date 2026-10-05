@@ -1,0 +1,81 @@
+artifact: implementation-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/increments/INC-009.report.md
+  section: "6.2 Preguntas para revisión humana"
+  increment: INC-009
+
+review:
+  status: APPROVED
+  reviewer: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: IV-021
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "ADR-028 pide un \"recorrido aleatorio de shards con jitter\" y, tras un fallo de ciclo, una \"espera creciente acotada\" (IV-004: expiración 1 s hasta 5 s; resto, periodo propio hasta 5 x periodo), pero ninguna fuente cuantifica el jitter, el factor de crecimiento de la espera ni qué es un \"fallo de ciclo\". ¿Se aprueban las tres interpretaciones implementadas en CMP-014?"
+    options:
+      - "(a) Aprobar: (1) jitter = fase inicial aleatoria uniforme en [0, periodo) por proceso e instancia; después, un disparo cada periodo exacto, sin jitter por disparo, de modo que las periodicidades aprobadas (5/10/10/60 s) no cambian; el orden de los shards es una permutación aleatoria nueva en cada ciclo; (2) la espera tras fallos consecutivos se duplica (x2) desde el valor inicial hasta el máximo de IV-004, como la espera de los bucles de consumo aprobada en IV-004 (expiración 1, 2, 4, 5, 5 s; barrido y reversos 10, 20, 40, 50 s; limpieza 60, 120, 240, 300 s); un ciclo correcto vuelve al periodo; (3) un ciclo falla si el caso de uso señala un error o si todos los candidatos y consultas de índice que procesó fallaron (CycleResult con FAILED > 0 y ningún otro resultado); un ciclo mixto, uno omitido por el propio caso de uso (barrido con publicación no disponible) o uno sin candidatos es correcto"
+      - "(b) Aprobar con cambios indicados por el humano (por ejemplo, un jitter acotado en cada disparo, otro factor de crecimiento u otra definición de fallo de ciclo)"
+      - "(c) Devolver al Architect"
+    recommended: >
+      (a). No introduce ningún valor numérico nuevo: la fase está acotada por el periodo aprobado y
+      la espera por los extremos de IV-004. La fase aleatoria desincroniza las instancias del worker
+      que arrancan a la vez (despliegue) sin alterar la periodicidad ni la demora máxima de 15 s de
+      la expiración. Con la definición (3), una caída de DynamoDB (todas las consultas fallan) activa
+      la espera creciente, y en la expiración un fallo se reintenta antes del siguiente periodo (1 s),
+      lo que conserva el plazo de 15 s (probado: tres ciclos fallidos seguidos liberan la
+      Reservation dentro de 15 s). Son propiedades configurables de WorkerSchedulerSettings; el
+      enlace a propiedades se hace en INC-010. No bloquea ningún incremento.
+    decision: CONFIRMED
+    answer: >
+      (a). Se aprueban las tres interpretaciones: fase inicial aleatoria en
+      [0, periodo) y periodo exacto después; espera tras fallos consecutivos
+      x2 hasta el máximo de IV-004; definición de fallo de ciclo propuesta.
+    impact:
+      - INC-009
+      - INC-010
+      - ADR-028
+      - CMP-014
+      - AC-008
+
+  - id: IV-022
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "En la primera ejecución completa de INC-009, la prueba de INC-007 PaymentHttpClientSpikeTest.concurrentCallsDoNotBlock (SPK-021) falló de forma intermitente: BlockHound detectó Unsafe#park en un hilo parallel dentro de Netty (io.netty.buffer.AdaptivePoolingAllocator$MagazineGroup.tryExpandMagazines -> $Magazine.free -> StampedLock.writeLock) cuando el servidor de prueba escribe la respuesta diferida desde Schedulers.parallel() y compite por el asignador de buffers con los hilos de E/S; el servidor respondió 500. La segunda ejecución completa y dos ejecuciones aisladas pasaron. No afecta a código de INC-009. ¿Cómo se trata?"
+    options:
+      - "(a) Añadir una excepción de BlockHound para ese interno de Netty (allowBlockingCallsInside de io.netty.buffer.AdaptivePoolingAllocator$MagazineGroup#tryExpandMagazines), documentada como interno de terceros según el plan §4.3, igual que las tres excepciones del SDK de AWS de INC-005"
+      - "(b) Cambiar solo el servidor de prueba de PaymentHttpClientSpikeTest para que escriba la respuesta diferida en el bucle de eventos de su conexión (sin cambiar ninguna aserción del cliente)"
+      - "(c) Mantenerlo como está y documentar la intermitencia"
+    recommended: >
+      (a). Es una sección crítica corta del asignador de Netty, sin E/S, de la misma categoría que
+      las excepciones ya aprobadas para el SDK de AWS; la misma contención puede darse con WebClient
+      usado desde hilos parallel, así que (b) solo ocultaría el síntoma en una prueba. No se aplicó
+      ningún cambio en INC-009: el detector y la prueba de INC-007 siguen intactos. No bloquea
+      ningún incremento, pero puede hacer fallar de forma intermitente cualquier build completo.
+    decision: CONFIRMED
+    answer: >
+      (a). Añadir una excepción de BlockHound documentada para
+      io.netty.buffer.AdaptivePoolingAllocator$MagazineGroup#tryExpandMagazines
+      como interno de terceros (plan §4.3). Se aplica al inicio de INC-010.
+    impact:
+      - INC-007
+      - INC-010
+      - NFR-003
+      - ADR-038
+
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
