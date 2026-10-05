@@ -1,0 +1,102 @@
+artifact: platform-implementation-review
+schema_version: 1.0
+feature: ticketing
+plan: implementation/platform.implementation-plan.v1.md
+source:
+  artifact: implementation/platform-increments/PLAT-INC-005.report.md
+  increment: PLAT-INC-005
+  sections: ["3. Spikes", "7. Blockers", "8. Handoff to other agents"]
+
+review:
+  status: APPROVED
+  reviewed_by: human
+  reviewed_at: 2026-10-05
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+items:
+
+  - id: PLAT-IV-014
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: >
+      Con PLAT-IV-006 (a), la etapa de build de la imagen de ticketing ejecuta
+      "sh ./mvnw -B verify". En Linux (contenedor Temurin 25) fallan pruebas
+      unitarias del backend que dependen del sistema operativo:
+      PaymentHttpClientSpikeTest.responseTimeout y WebStackSpikeTest.inMemoryBodyLimit
+      afirman el prefijo de hilo "reactor-http-nio" (en Linux Reactor Netty usa
+      epoll: 4 de 4 ejecuciones), y WebApiConfigurationTest.configurableClaimNames
+      falla de forma intermitente (2 de 4) por BlockHound: la firma RSA del ayudante
+      de pruebas TestTokenIssuer usa SecureRandom NativePRNG, que lee /dev/urandom con
+      FileInputStream. El resto (domain 99, application 277, bootstrap 24, puerta de
+      cobertura) pasa. Este agente no puede cambiar pruebas del backend ni la política
+      de pruebas aprobada. ¿Cómo se procede?
+    options:
+      - "(a) El Backend Developer hace portables las tres pruebas (aserción de hilo con prefijo 'reactor-http-' o transporte fijado en la prueba; firma del TestTokenIssuer fuera del hilo protegido por BlockHound o sin NativePRNG), con commit; el Dockerfile entregado no cambia (PLAT-IV-006 a sin excepciones) y PLAT-INC-005 se reanuda después"
+      - "(b) Platform añade en el RUN de la etapa de build JAVA_TOOL_OPTIONS=\"-Dreactor.netty.native=false -Djava.security.egd=file:/dev/./urandom\" solo para las JVM de prueba (verificado: 4 de 4 builds en verde, mismo número de pruebas); el runtime no lo hereda y, con tmpfs /tmp noexec (endurecimiento aprobado), también usa NIO; sin cambios en el backend"
+      - "(c) Aplicar PLAT-IV-006 (b): package -DskipTests dentro de la imagen tras un verify -Pintegration en el host, registrando la revisión Git"
+    recommended: >
+      (a). Las pruebas son del backend y el defecto es de portabilidad de las propias
+      pruebas, no del código de producción (ambos roles arrancan, quedan sanos y se
+      apagan de forma ordenada en contenedor). El cambio es pequeño y deja la imagen
+      autoverificada en Linux sin condiciones especiales. (b) es la alternativa más
+      rápida si se prioriza la entrega: alinea las JVM de prueba con el transporte NIO
+      que usará el runtime endurecido, pero deja sin probar en Linux el
+      comportamiento por defecto. (c) pierde la autoverificación de la imagen.
+    blocking: true
+    needed_before: PLAT-INC-005
+    decision: CONFIRMED
+    answer: >
+      (a). Las pruebas se hacen portables, solo código de prueba: la aserción del
+      hilo acepta cualquier event loop de Reactor Netty (reactor-http-, NIO o epoll)
+      y WebApiConfigurationTest firma los tokens antes del pipeline reactivo. El
+      Dockerfile queda como se entregó (PLAT-IV-006 a, sin flags). Verificado:
+      docker build ticketing con BUILD SUCCESS en Linux (infrastructure 369 pruebas,
+      0 fallos). Commit en CODE_REPO indicado en la reanudación.
+    impact: [PLAT-INC-005, PLAT-INC-006, PLAT-INC-007, PLAT-IV-006, ADR-036, ADR-038, NFR-003, TC-006]
+    resumption_note: >
+      Al reanudar PLAT-INC-005 su resultado se registrará en un informe nuevo, sin
+      sobrescribir el informe BLOCKED; el humano puede fijar el nombre en "answer"
+      (propuesta: implementation/platform-increments/PLAT-INC-005.r2.report.md).
+
+  - id: PLAT-IV-015
+    type: PLATFORM_VALIDATION
+    priority: MEDIUM
+    question: >
+      run-local.sh (añadido por el humano en la raíz de CODE_REPO) ejecuta
+      "docker compose up -d --wait" y arranca api y worker como JVM locales en los
+      puertos del host 8080/8081 y 8082/8083. Según ADR-036, TC-012 y el plan
+      aprobado, PLAT-INC-006 añade a la topología por defecto ticketing-api (con
+      127.0.0.1:8080 y 127.0.0.1:8081) y ticketing-worker. Después de PLAT-INC-006,
+      "run-local.sh start" levantaría también esos contenedores: la JVM local del api
+      no podría enlazar 8080/8081 y un segundo worker consumiría las mismas colas.
+      ¿Cómo deben coexistir?
+    options:
+      - "(a) ticketing-api y ticketing-worker quedan en la topología por defecto (ADR-036, TC-012); el humano adapta run-local.sh para levantar solo las dependencias (docker compose up -d --wait dynamodb-local localstack local-idp payment-mock e infra-init) o lo retira; Platform no modifica run-local.sh"
+      - "(b) Platform pone ticketing-api y ticketing-worker bajo un perfil de Compose (p. ej. app), de modo que 'docker compose up' sin perfil no los arranca (se aparta de la topología por defecto de ADR-036 y TC-012)"
+      - "(c) Sin cambios; se documenta que run-local.sh y los servicios de aplicación de Compose son excluyentes"
+    recommended: >
+      (a). Respeta la topología aprobada (la aplicación forma parte del entorno
+      Compose por defecto) y mantiene run-local.sh como herramienta del humano
+      para ejecutar las JVM fuera de contenedores.
+    blocking: true
+    needed_before: PLAT-INC-006
+    decision: CONFIRMED
+    answer: >
+      (a). run-local.sh levanta solo las dependencias (dynamodb-local, localstack,
+      infra-init, local-idp, payment-mock) y sigue ejecutando api y worker como
+      procesos JVM locales; docker compose up levanta el stack completo. Cambio ya
+      aplicado por el humano; Platform no modifica run-local.sh.
+    impact: [PLAT-INC-006, PLAT-INC-007, ADR-036, TC-012, DEL-005]
+
+gate:
+  blocking_items: [PLAT-IV-014, PLAT-IV-015]
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  increment_can_resume:
+    PLAT-INC-005: true
+    PLAT-INC-006: true
