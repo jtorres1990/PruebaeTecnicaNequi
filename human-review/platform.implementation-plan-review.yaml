@@ -1,0 +1,282 @@
+artifact: platform-implementation-plan-review
+schema_version: 1.0
+feature: ticketing
+plan: implementation/platform.implementation-plan.v1.md
+
+review:
+  status: APPROVED
+  reviewed_by: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+items:
+
+  - id: PLAN
+    type: PLAN
+    priority: HIGH
+    title: "Plan de incrementos, spikes y alcance de Platform"
+    proposal: >
+      Siete incrementos en CODE_REPO (solo docker-compose.yml, .env.example,
+      .gitignore mínimo, platform/** y los Dockerfile/.dockerignore de
+      ticketing y payment-mock): PLAT-INC-001 contrato de configuración,
+      estructura y spikes de imágenes y herramientas; PLAT-INC-002 infra-init
+      idempotente (tabla ticketing con GSI1..GSI4 y TTL, cuatro colas con
+      redrive) junto con dynamodb-local y localstack; PLAT-INC-003 local-idp,
+      cinco identidades y lote previo de >= 1.200 tokens CUSTOMER
+      (load-token-generator, perfil load); PLAT-INC-004 imagen independiente de
+      payment-mock; PLAT-INC-005 imagen única de ticketing (depende de
+      INC-010); PLAT-INC-006 ticketing-api, ticketing-worker, orden de
+      arranque y load-test como punto de integración (depende de INC-010);
+      PLAT-INC-007 verificación desde checkout limpio, seguridad,
+      reproducibilidad y handoffs. Catorce spikes (PLAT-SPK-001 a 014). No se
+      reabren las verificaciones CONFIRMED de DynamoDB Local 3.3.1 y
+      LocalStack 4.14.0. Fuera de alcance: código de ticketing y payment-mock,
+      AWS/IaC, CI/CD, load-tests/qa, README final, E2E, resiliencia y carga.
+    decision: CONFIRMED
+    answer: >
+      Se aprueba el plan de siete incrementos, su orden, los catorce spikes y el alcance tal como se proponen.
+
+  - id: PLAT-IV-001
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: "¿Qué imagen base de Java 25 (build JDK y runtime JRE) se usa para ticketing, payment-mock y, si aplica, local-idp, y cómo se ejecutan los healthchecks HTTP?"
+    options:
+      - "(a) Eclipse Temurin 25 JDK/JRE sobre Ubuntu (imagen oficial de Docker Hub), tag 25.0.x concreto + digest"
+      - "(b) Azul Zulu 25 JDK/JRE (mismo proveedor que la toolchain ENV-002), tag concreto + digest"
+      - "(c) Amazon Corretto 25 sobre AL2023, tag concreto + digest"
+      - "En todas: healthcheck con el cliente HTTP presente en la imagen; si no existe, sonda JDK compilada en la etapa de build (sin instalar paquetes)"
+    recommended: >
+      (a), con el tag y el digest exactos fijados tras PLAT-SPK-001 y
+      registrados en el informe de PLAT-INC-001; healthcheck con curl de la
+      imagen si PLAT-SPK-001 lo confirma, si no sonda JDK. Si el candidato no
+      cumple (no root, Java 25, mantenimiento), se abre una revisión de
+      implementación.
+    blocking: true
+    needed_before: PLAT-INC-001
+    decision: CONFIRMED
+    answer: >
+      (a). Eclipse Temurin 25 JDK/JRE, tag y digest fijados tras PLAT-SPK-001; healthcheck con curl de la imagen o, si no existe, sonda JDK compilada en el build.
+    impact: [PLAT-INC-001, PLAT-INC-003, PLAT-INC-004, PLAT-INC-005, ADR-036, ADR-034, TC-006]
+
+  - id: PLAT-IV-002
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: "¿Qué implementación concreta tiene local-idp (emisor OIDC local de ADR-033)?"
+    options:
+      - "(a) Emisor mínimo propio en platform/local-idp, Java 25 solo con la biblioteca estándar (servidor HTTP y firma RSA), sobre la imagen de PLAT-IV-001, con modos serve, generate (load-token-generator) y verify"
+      - "(b) Imagen de terceros de servidor OAuth2/OIDC simulado, fijada por digest, sujeta a PLAT-SPK-005 (claims arbitrarios, sujetos, emisor fijo)"
+      - "(c) Servidor de identidad completo (Option D de ADR-033) con realm y > 1.000 usuarios importados"
+    recommended: >
+      (a). Controla exactamente los claims de forma Cognito (token_use,
+      client_id, cognito:groups como array), fija el emisor con independencia
+      del host de la solicitud (coherencia host/red de ADR-033) y no añade
+      dependencias externas. La opción (b) suele derivar el emisor del host de
+      la solicitud; (c) es pesada y exige aprovisionar usuarios.
+    blocking: true
+    needed_before: PLAT-INC-001
+    decision: CONFIRMED
+    answer: >
+      (a). Emisor mínimo propio en platform/local-idp, Java 25 solo con la biblioteca estándar, con modos serve, generate y verify.
+    impact: [PLAT-INC-001, PLAT-INC-003, CMP-020, ADR-033, TC-016, RISK-013]
+
+  - id: PLAT-IV-003
+    type: PLATFORM_VALIDATION
+    priority: MEDIUM
+    question: "¿Se aprueba el contrato operativo del emisor local (puerto, emisor, endpoints, emisión, claims, vigencias e identidad no-groups)?"
+    options:
+      - "(a) Puerto 9000 en el contenedor y ${LOCAL_IDP_HOST_PORT:-9000} en 127.0.0.1; emisor fijo http://local-idp:9000; discovery /.well-known/openid-configuration; JWKS /.well-known/jwks.json; POST /token (form) con identity=<admin|customer-a|customer-b|admin-customer|no-groups> o sub=<1..128 [A-Za-z0-9._-]>&groups=<CUSTOMER,ADMIN>, expires_in opcional (defecto 3600 s, máximo 86400 s); respuesta {access_token, token_type: Bearer, expires_in}; RS256 con kid; claims sub, cognito:groups (array), token_use=access, client_id=ticketing-local-client (ficticio), iss, exp, iat, jti; sin aud; no-groups sin claim cognito:groups; endpoint sin autenticación (solo loopback y red local)"
+      - "(b) Igual que (a) pero no-groups emite un grupo no reconocido en cognito:groups"
+      - "(c) Otro contrato indicado por el humano"
+    recommended: >
+      (a). Coincide con lo que valida AccessTokenSettings (INC-008) y con IV-006
+      (c) del backend; la ausencia del claim reproduce a Cognito para un
+      usuario sin grupos.
+    blocking: false
+    needed_before: PLAT-INC-003
+    decision: CONFIRMED
+    answer: >
+      (a). Contrato operativo del emisor tal como se propone; no-groups sin el claim cognito:groups.
+    impact: [PLAT-INC-003, PLAT-INC-006, ADR-033, ADR-032, AC-028]
+
+  - id: PLAT-IV-004
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: "¿Qué herramienta e imagen usa infra-init para crear y validar tabla, índices, TTL y colas?"
+    options:
+      - "(a) AWS CLI v2 oficial fijada por tag + digest, en una imagen derivada con scripts POSIX y validación con --query (sugerida por ADR-036)"
+      - "(b) Python slim fijada por digest con boto3 fijado, en una imagen de platform/"
+      - "(c) Programa Java con el SDK de AWS sobre la imagen de PLAT-IV-001"
+    recommended: >
+      (a), sujeta a PLAT-SPK-004 (operaciones y comparaciones expresables y
+      ejecución no root). Si el spike falla, (b).
+    blocking: true
+    needed_before: PLAT-INC-001
+    decision: CONFIRMED
+    answer: >
+      (a). AWS CLI v2 oficial fijada por tag y digest en una imagen derivada con scripts POSIX; si PLAT-SPK-004 falla, (b).
+    impact: [PLAT-INC-001, PLAT-INC-002, ADR-036, TC-004, TC-005]
+
+  - id: PLAT-IV-005
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: "¿Cómo trata infra-init una tabla, índice, TTL o cola existente con esquema o atributos incompatibles?"
+    options:
+      - "(a) Falla con un diff preciso y código distinto de 0, sin modificar ni borrar nada; remedio documentado: docker compose down del proyecto (datos efímeros) y volver a levantar"
+      - "(b) Corrige automáticamente los atributos mutables (SetQueueAttributes, TTL) y falla solo ante incompatibilidades inmutables (claves, índices, proyecciones)"
+      - "(c) Borra y recrea el recurso"
+    recommended: >
+      (a). Colas adicionales ajenas a las cuatro aprobadas se ignoran; un
+      índice adicional en la tabla se trata como incompatibilidad.
+    blocking: true
+    needed_before: PLAT-INC-002
+    decision: CONFIRMED
+    answer: >
+      (a). Fallar con un diff preciso sin modificar ni borrar nada; remedio documentado docker compose down y volver a levantar.
+    impact: [PLAT-INC-002, ADR-036]
+
+  - id: PLAT-IV-006
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: "¿Qué pruebas se ejecutan dentro del build multi-etapa de las imágenes de ticketing y payment-mock?"
+    options:
+      - "(a) La etapa de build ejecuta sh ./mvnw -B verify: en ticketing, unitarias, arquitectura, BlockHound y puerta de cobertura (las *IT quedan fuera porque requieren un daemon de Docker y las verifica el backend en cada incremento); en payment-mock, la suite completa"
+      - "(b) package -DskipTests dentro de la imagen tras un verify -Pintegration separado cuya revisión Git se registra en el informe"
+      - "(c) (a) por defecto, con una etapa alternativa (b) seleccionable por target de build"
+    recommended: >
+      (a). Mantiene la imagen autoverificada sin depender de Docker dentro del
+      build; la caché de Maven usa montajes de BuildKit (nunca en capas).
+    blocking: true
+    needed_before: PLAT-INC-004
+    decision: CONFIRMED
+    answer: >
+      (a). sh ./mvnw -B verify en la etapa de build: en ticketing sin *IT; en payment-mock la suite completa.
+    impact: [PLAT-INC-004, PLAT-INC-005, ADR-036, NFR-013]
+
+  - id: PLAT-IV-007
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: "¿Se aprueban los nombres de las variables propias de Platform, la etiqueta de las imágenes propias y que las variables del backend se tomen literalmente del handoff de INC-010?"
+    options:
+      - "(a) AWS_REGION=us-east-1; AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY ficticias; TICKETING_TABLE_NAME=ticketing; ORDERS_QUEUE_NAME, ORDERS_DLQ_NAME, PROVISIONING_QUEUE_NAME, PROVISIONING_DLQ_NAME (por defecto los nombres lógicos); PAYMENT_MOCK_API_KEY obligatoria (ficticia en .env.example); puertos de host *_HOST_PORT; LOCAL_IDP_* (emisor, cliente, vigencias); LOAD_TOKEN_COUNT=1200 y LOAD_TOKEN_TTL_SECONDS; imágenes propias ticketing-platform/<servicio>:local; nombres de variables del backend copiados del handoff de INC-010, nunca inventados"
+      - "(b) Otra convención indicada por el humano"
+    recommended: "(a)"
+    blocking: true
+    needed_before: PLAT-INC-001
+    decision: CONFIRMED
+    answer: >
+      (a). Convención de variables e imágenes propuesta; las variables del backend se copian literalmente del handoff de INC-010.
+    impact: [PLAT-INC-001, PLAT-INC-002, PLAT-INC-006, ADR-036, ADR-032]
+
+  - id: PLAT-IV-008
+    type: PLATFORM_VALIDATION
+    priority: HIGH
+    question: "¿Cómo se publican los puertos al host, dado que el 8090 está ocupado en este equipo por WsToastNotification.exe?"
+    options:
+      - "(a) Todos los puertos de host configurables con los valores del contrato por defecto (8080, 8081, 8090, 9000, 8000, 4566) y ligados a 127.0.0.1; el .env local de este equipo fija PAYMENT_MOCK_HOST_PORT=18090; el puerto interno del mock sigue en 8090 (servers del contrato)"
+      - "(b) El mismo esquema con 18090 como valor por defecto del mock para todos"
+      - "(c) No publicar el mock al host (contradice ADR-036: expuesto para la API de control)"
+    recommended: "(a)"
+    blocking: true
+    needed_before: PLAT-INC-002
+    decision: CONFIRMED
+    answer: >
+      (a). Puertos de host configurables con los valores del contrato por defecto, ligados a 127.0.0.1; el .env local de este equipo fija PAYMENT_MOCK_HOST_PORT=18090.
+    impact: [PLAT-INC-002, PLAT-INC-003, PLAT-INC-004, PLAT-INC-006, ADR-036, ADR-032]
+
+  - id: PLAT-IV-009
+    type: PLATFORM_VALIDATION
+    priority: MEDIUM
+    question: "¿Dónde y en qué formato se dejan los tokens de carga generados por load-token-generator?"
+    options:
+      - "(a) Volumen Compose efímero load-tokens: /tokens/customer-tokens.csv (cabecera sub,access_token) y /tokens/manifest.json sin tokens (conteo, emisor, cliente, lote, emisión y vencimiento); load-test lo monta solo lectura; nada en el host ni en Git; 1.200 tokens por defecto; vigencia por defecto 7.200 s, configurable"
+      - "(b) Además, exportación a un directorio del host ignorado por Git bajo platform/"
+      - "(c) Otro formato indicado por QA"
+    recommended: "(a)"
+    blocking: false
+    needed_before: PLAT-INC-003
+    decision: CONFIRMED
+    answer: >
+      (a). Volumen efímero load-tokens con customer-tokens.csv y manifest.json; 1.200 tokens con vigencia de 7.200 s por defecto.
+    impact: [PLAT-INC-003, PLAT-INC-006, ADR-033, ADR-036, ADR-038]
+
+  - id: PLAT-IV-010
+    type: PLATFORM_VALIDATION
+    priority: MEDIUM
+    question: "¿Cómo se define el servicio load-test mientras QA no entrega su herramienta y scripts?"
+    options:
+      - "(a) Servicio en el perfil load con sus dependencias (ticketing-api saludable, load-token-generator completado) y montajes (load-tests/ y load-tokens solo lectura), con un comando provisional que falla de inmediato indicando que falta el arnés de QA (nunca simula una prueba); se sustituye por la imagen y el comando que entregue QA"
+      - "(b) No definirlo hasta el handoff de QA"
+      - "(c) QA proporciona ahora imagen fijada, comando y variables"
+    recommended: "(a)"
+    blocking: false
+    needed_before: PLAT-INC-006
+    decision: CONFIRMED
+    answer: >
+      (a). Servicio load-test en el perfil load con un comando provisional que falla de inmediato indicando que falta el arnés de QA.
+    impact: [PLAT-INC-006, PLAT-INC-007, ADR-036, ADR-038]
+
+  - id: PLAT-IV-011
+    type: PLATFORM_VALIDATION
+    priority: MEDIUM
+    question: "Reiniciar un emulador efímero elimina tabla o colas. ¿Cómo se trata, en particular para el escenario 3 de ADR-038 (detener la cola)?"
+    options:
+      - "(a) Mantener datos efímeros; documentar docker compose pause/unpause localstack para 'cola detenida' (conserva el estado) y, tras un reinicio, volver a ejecutar infra-init (idempotente)"
+      - "(b) Overlay opcional de persistencia (docker-compose.persistent.yml) claramente marcado"
+      - "(c) Ganchos de inicio del propio emulador que recrean recursos (divide la responsabilidad de infra-init)"
+    recommended: "(a), confirmada por PLAT-SPK-012"
+    blocking: false
+    needed_before: PLAT-INC-007
+    decision: CONFIRMED
+    answer: >
+      (a). Datos efímeros; docker compose pause/unpause localstack para 'cola detenida' y re-ejecutar infra-init tras un reinicio.
+    impact: [PLAT-INC-002, PLAT-INC-007, ADR-036, ADR-038, RISK-007]
+
+  - id: PLAT-IV-012
+    type: PLATFORM_VALIDATION
+    priority: LOW
+    question: "¿Se aprueban los valores operativos derivados para los contenedores?"
+    options:
+      - "(a) stop_grace_period 40 s para ticketing-api y ticketing-worker (35 s aprobados + margen); límites de memoria: payment-mock 384 MB (handoff PM-INC-006), api y worker 768 MB cada uno, local-idp 256 MB, emuladores sin límite inicial y medidos en PLAT-INC-007; JVM con -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError; healthchecks cada 10 s con start_period acorde al arranque medido"
+      - "(b) Valores indicados por el humano"
+    recommended: "(a)"
+    blocking: false
+    needed_before: PLAT-INC-006
+    decision: CONFIRMED
+    answer: >
+      (a). Valores operativos derivados tal como se proponen.
+    impact: [PLAT-INC-004, PLAT-INC-005, PLAT-INC-006, PLAT-INC-007]
+
+  - id: PLAT-IV-013
+    type: PLATFORM_VALIDATION
+    priority: MEDIUM
+    question: "¿Se aprueban las interpretaciones de atributos de recursos que las fuentes no fijan literalmente?"
+    options:
+      - "(a) DLQ sin ReceiveMessageWaitTimeSeconds (0; '—' en messaging v2 §1, igual que el fixture del backend); '20 s, hasta 10 / 1 mensaje' = atributo de espera de la cola principal + parámetro del consumidor; sin RedriveAllowPolicy ni cifrado de colas en local; sin PITR ni cifrado de tabla en local; GSI on-demand sin capacidad provisionada; infra-init no valida atributos no listados (p. ej. MaximumMessageSize)"
+      - "(b) Otras interpretaciones indicadas por el humano"
+    recommended: "(a)"
+    blocking: true
+    needed_before: PLAT-INC-002
+    decision: CONFIRMED
+    answer: >
+      (a). Interpretaciones de atributos tal como se proponen.
+    impact: [PLAT-INC-002, ADR-029, ADR-036]
+
+gate:
+  blocking_items:
+    - PLAN
+    - PLAT-IV-001
+    - PLAT-IV-002
+    - PLAT-IV-004
+    - PLAT-IV-005
+    - PLAT-IV-006
+    - PLAT-IV-007
+    - PLAT-IV-008
+    - PLAT-IV-013
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
