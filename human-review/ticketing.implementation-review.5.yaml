@@ -1,0 +1,57 @@
+artifact: implementation-review
+schema_version: 1.0
+feature: ticketing
+
+source:
+  artifact: implementation/increments/INC-008.report.md
+  section: "6.2 Preguntas para revisión humana"
+  increment: INC-008
+
+review:
+  status: APPROVED
+  reviewer: human
+  reviewed_at: 2026-10-04
+
+# Allowed human decisions:
+# CONFIRMED
+# CONFIRMED_WITH_CHANGE
+# REJECTED
+# PENDING
+
+decisions:
+
+  - id: IV-020
+    type: IMPLEMENTATION_VALIDATION
+    priority: LOW
+    question: "ADR-035 asigna SERVICE_UNAVAILABLE (503) con Retry-After a la \"indisponibilidad temporal tras agotar reintentos\" en todas las operaciones (por ejemplo, DynamoDB con throttling o caído después de los reintentos acotados del SDK), pero IV-004 solo cuantifica el Retry-After del conflicto transaccional persistente y del doble fallo (1 s) y el del circuito de publicación abierto (tiempo restante, mínimo 1 s). ¿Se aprueba el valor implementado para la indisponibilidad técnica de una dependencia, como propiedad configurable?"
+    options:
+      - "(a) Aprobar: Retry-After de 1 s para toda indisponibilidad técnica tras agotar reintentos (WebApiSettings.unavailableRetryAfter, configurable), el mismo valor que IV-004 aprobó para el conflicto persistente y el doble fallo"
+      - "(b) Aprobar con otro valor indicado por el humano"
+      - "(c) Devolver al Architect"
+    recommended: >
+      (a). Es la misma categoría de respuesta de ADR-035 (503 tras reintentos acotados, el cliente repite) y
+      reutiliza el valor ya aprobado en IV-004 para los otros 503 de la compra. El valor es una propiedad
+      configurable y el enlace a propiedades se hace en INC-010. No bloquea ningún incremento.
+    decision: CONFIRMED
+    answer: >
+      (a). Retry-After de 1 s para toda indisponibilidad técnica tras agotar
+      reintentos, configurable en WebApiSettings.unavailableRetryAfter.
+    impact:
+      - INC-008
+      - INC-010
+      - ADR-035
+      - CMP-016
+      - API-001
+      - API-002
+      - API-003
+      - API-004
+      - API-005
+      - API-006
+
+# No blocking items: IV-020 is LOW and does not stop dependent increments.
+# This gate is computed by the agent and is not an approval of IV-020.
+gate:
+  blocking_items: []
+  pending_blocking_items: []
+  non_blocking_pending_items: []
+  implementation_can_start: true
